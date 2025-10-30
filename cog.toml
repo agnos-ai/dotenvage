@@ -1,0 +1,30 @@
+# Tag prefix (v0.0.1, v0.0.2, etc.)
+tag_prefix = "v"
+
+[changelog]
+path = "CHANGELOG.md"
+template = "remote"
+remote = "github.com"
+repository = "dotenvage"
+owner = "agnos-ai"
+
+[commit_types]
+feat = { changelog_title = "Features" }
+fix = { changelog_title = "Bug Fixes" }
+docs = { changelog_title = "Documentation" }
+style = { changelog_title = "Styling", omit_from_changelog = true }
+refactor = { changelog_title = "Code Refactoring" }
+perf = { changelog_title = "Performance Improvements" }
+test = { changelog_title = "Tests", omit_from_changelog = true }
+build = { changelog_title = "Build System" }
+ci = { changelog_title = "Continuous Integration", omit_from_changelog = true }
+chore = { changelog_title = "Miscellaneous Chores", omit_from_changelog = true }
+revert = { changelog_title = "Reverts" }
+
+[bump_profiles.default]
+pre_bump_hooks = [
+    "cargo bump {{version}}"
+]
+post_bump_hooks = [
+    "cargo update --workspace"
+]
