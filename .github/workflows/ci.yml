@@ -170,11 +170,6 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
       
-      - name: Install Cocogitto
-        run: |
-          cargo install --locked cocogitto
-          cog --version
-      
       - name: Configure Git
         run: |
           git config --global user.name "github-actions[bot]"
@@ -185,37 +180,18 @@ jobs:
         run: |
           VERSION="${{ needs.version-check.outputs.new_version }}"
           
-          # Generate changelog for this version
-          cog changelog --at "v$VERSION" > RELEASE_CHANGELOG.md 2>/dev/null || echo "## Changes\n\nSee commit history for details." > RELEASE_CHANGELOG.md
-          
-          # Also update full CHANGELOG.md
-          if [ ! -f CHANGELOG.md ]; then
-            echo "# Changelog" > CHANGELOG.md
-            echo "" >> CHANGELOG.md
-            echo "All notable changes to this project will be documented in this file." >> CHANGELOG.md
-            echo "" >> CHANGELOG.md
+          # Generate changelog from conventional commits since last tag
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -z "$LAST_TAG" ]; then
+            # First release - get all commits
+            git log --pretty=format:"* %s (%h)" | grep -v "^* chore" | grep -v "^* test" > RELEASE_CHANGELOG.md || echo "## Changes\n\nInitial release." > RELEASE_CHANGELOG.md
+          else
+            # Get commits since last tag
+            git log "$LAST_TAG"..HEAD --pretty=format:"* %s (%h)" | grep -v "^* chore" | grep -v "^* test" > RELEASE_CHANGELOG.md || echo "## Changes\n\nSee commit history for details." > RELEASE_CHANGELOG.md
           fi
-          
-          # Prepend new version to changelog
-          {
-            head -n 3 CHANGELOG.md
-            echo ""
-            echo "## v$VERSION - $(date +%Y-%m-%d)"
-            echo ""
-            cat RELEASE_CHANGELOG.md
-            echo ""
-            tail -n +4 CHANGELOG.md
-          } > CHANGELOG.new.md
-          mv CHANGELOG.new.md CHANGELOG.md
           
           echo "Changelog generated for v$VERSION"
           cat RELEASE_CHANGELOG.md
-      
-      - name: Commit Changelog
-        run: |
-          git add CHANGELOG.md
-          git diff --staged --quiet || git commit -m "chore: update CHANGELOG for v${{ needs.version-check.outputs.new_version }}"
-          git push origin main
       
       - name: Create and Push Tag
         run: |
