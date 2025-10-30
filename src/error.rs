@@ -30,7 +30,7 @@ pub enum SecretsError {
         /// The path to the file that couldn't be read.
         path: String,
         /// The reason for the failure.
-        reason: String
+        reason: String,
     },
 
     /// Failed to parse an environment file.
@@ -39,13 +39,13 @@ pub enum SecretsError {
         /// The path to the file that couldn't be parsed.
         path: String,
         /// The reason for the failure.
-        reason: String
+        reason: String,
     },
 
     /// Environment variable not found in the process environment.
     #[error("env var not found: {key}")]
     EnvVarNotFound {
         /// The name of the variable that wasn't found.
-        key: String
+        key: String,
     },
 }

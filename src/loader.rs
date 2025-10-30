@@ -85,15 +85,19 @@ impl EnvLoader {
 
     fn add_names_if_exist(dir: &Path, paths: &mut Vec<PathBuf>, parts: &[&str]) {
         for name in Self::gen_names(parts) {
-            if let Some(p) = Self::find_file_case_insensitive(dir, &name) {
-                if !paths.iter().any(|x| x == &p) { paths.push(p); }
+            if let Some(p) = Self::find_file_case_insensitive(dir, &name)
+                && !paths.iter().any(|x| x == &p)
+            {
+                paths.push(p);
             }
         }
     }
 
     fn add_exact_if_exist(dir: &Path, paths: &mut Vec<PathBuf>, filename: &str) {
-        if let Some(p) = Self::find_file_case_insensitive(dir, filename) {
-            if !paths.iter().any(|x| x == &p) { paths.push(p); }
+        if let Some(p) = Self::find_file_case_insensitive(dir, filename)
+            && !paths.iter().any(|x| x == &p)
+        {
+            paths.push(p);
         }
     }
 
@@ -107,7 +111,11 @@ impl EnvLoader {
     /// # Errors
     ///
     /// Returns an error if no encryption key can be found or loaded.
-    pub fn new() -> SecretsResult<Self> { Ok(Self { manager: SecretManager::new()? }) }
+    pub fn new() -> SecretsResult<Self> {
+        Ok(Self {
+            manager: SecretManager::new()?,
+        })
+    }
 
     /// Creates an `EnvLoader` with a specific `SecretManager`.
     ///
@@ -125,7 +133,9 @@ impl EnvLoader {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn with_manager(manager: SecretManager) -> Self { Self { manager } }
+    pub fn with_manager(manager: SecretManager) -> Self {
+        Self { manager }
+    }
 
     /// Loads `.env` files from the current directory in standard order.
     ///
@@ -148,7 +158,9 @@ impl EnvLoader {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn load(&self) -> SecretsResult<()> { self.load_from_dir(".") }
+    pub fn load(&self) -> SecretsResult<()> {
+        self.load_from_dir(".")
+    }
 
     /// Loads `.env` files from a specific directory using the same order as [`load`](Self::load).
     ///
@@ -167,7 +179,11 @@ impl EnvLoader {
             }
         }
 
-        for (k, v) in env_vars { unsafe { std::env::set_var(k, v); } }
+        for (k, v) in env_vars {
+            unsafe {
+                std::env::set_var(k, v);
+            }
+        }
         Ok(())
     }
 
@@ -218,8 +234,11 @@ impl EnvLoader {
     ///
     /// Returns an error if the file cannot be read or if decryption fails.
     pub fn load_env_file(&self, path: &Path) -> SecretsResult<HashMap<String, String>> {
-        let content = std::fs::read_to_string(path)
-            .map_err(|e| SecretsError::EnvFileReadFailed { path: path.display().to_string(), reason: e.to_string() })?;
+        let content =
+            std::fs::read_to_string(path).map_err(|e| SecretsError::EnvFileReadFailed {
+                path: path.display().to_string(),
+                reason: e.to_string(),
+            })?;
         self.parse_and_decrypt(&content, path)
     }
 
@@ -228,18 +247,31 @@ impl EnvLoader {
     /// # Errors
     ///
     /// Returns an error if the content cannot be parsed or if decryption fails.
-    pub fn parse_and_decrypt(&self, content: &str, path: &Path) -> SecretsResult<HashMap<String, String>> {
+    pub fn parse_and_decrypt(
+        &self,
+        content: &str,
+        path: &Path,
+    ) -> SecretsResult<HashMap<String, String>> {
         let mut vars = HashMap::new();
         for (line_num, line) in content.lines().enumerate() {
             let line = line.trim();
-            if line.is_empty() || line.starts_with('#') { continue; }
+            if line.is_empty() || line.starts_with('#') {
+                continue;
+            }
             if let Some((key, value)) = line.split_once('=') {
                 let key = key.trim().to_string();
                 let mut value = value.trim().to_string();
-                if (value.starts_with('"') && value.ends_with('"')) || (value.starts_with('\'') && value.ends_with('\'')) {
-                    value = value[1..value.len()-1].to_string();
+                if (value.starts_with('"') && value.ends_with('"'))
+                    || (value.starts_with('\'') && value.ends_with('\''))
+                {
+                    value = value[1..value.len() - 1].to_string();
                 }
-                let decrypted = self.manager.decrypt_value(&value).map_err(|e| SecretsError::EnvFileParseFailed { path: path.display().to_string(), reason: format!("line {} for '{}': {}", line_num + 1, key, e) })?;
+                let decrypted = self.manager.decrypt_value(&value).map_err(|e| {
+                    SecretsError::EnvFileParseFailed {
+                        path: path.display().to_string(),
+                        reason: format!("line {} for '{}': {}", line_num + 1, key, e),
+                    }
+                })?;
                 vars.insert(key, decrypted);
             }
         }
@@ -254,7 +286,9 @@ impl EnvLoader {
     ///
     /// Returns an error if the variable is not set or if decryption fails.
     pub fn get_var(&self, key: &str) -> SecretsResult<String> {
-        let value = std::env::var(key).map_err(|_| SecretsError::EnvVarNotFound { key: key.to_string() })?;
+        let value = std::env::var(key).map_err(|_| SecretsError::EnvVarNotFound {
+            key: key.to_string(),
+        })?;
         self.manager.decrypt_value(&value)
     }
 
@@ -271,7 +305,9 @@ impl EnvLoader {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn get_var_or(&self, key: &str, default: &str) -> String { self.get_var(key).unwrap_or_else(|_| default.to_string()) }
+    pub fn get_var_or(&self, key: &str, default: &str) -> String {
+        self.get_var(key).unwrap_or_else(|_| default.to_string())
+    }
 
     /// Resolves the `<ENV>` placeholder for environment-specific file names.
     ///
@@ -296,7 +332,9 @@ impl EnvLoader {
     /// println!("Environment: {}", env);
     /// ```
     pub fn resolve_env() -> String {
-        std::env::var("DOTENVAGE_ENV").ok().filter(|s| !s.is_empty())
+        std::env::var("DOTENVAGE_ENV")
+            .ok()
+            .filter(|s| !s.is_empty())
             .or_else(|| std::env::var("EKG_ENV").ok().filter(|s| !s.is_empty()))
             .or_else(|| std::env::var("VERCEL_ENV").ok().filter(|s| !s.is_empty()))
             .or_else(|| std::env::var("NODE_ENV").ok().filter(|s| !s.is_empty()))
@@ -331,17 +369,20 @@ impl EnvLoader {
     /// }
     /// ```
     pub fn resolve_arch() -> Option<String> {
-        let arch = std::env::var("DOTENVAGE_ARCH").ok().filter(|s| !s.is_empty())
+        let arch = std::env::var("DOTENVAGE_ARCH")
+            .ok()
+            .filter(|s| !s.is_empty())
             .or_else(|| std::env::var("EKG_ARCH").ok().filter(|s| !s.is_empty()))
             .or_else(|| std::env::var("TARGETARCH").ok().filter(|s| !s.is_empty()))
             .or_else(|| {
                 // Parse TARGETPLATFORM (e.g., "linux/arm64" → "arm64")
-                std::env::var("TARGETPLATFORM").ok()
+                std::env::var("TARGETPLATFORM")
+                    .ok()
                     .filter(|s| !s.is_empty())
                     .and_then(|p| p.split('/').nth(1).map(String::from))
             })
             .or_else(|| std::env::var("RUNNER_ARCH").ok().filter(|s| !s.is_empty()))?;
-        
+
         // Normalize and convert to lowercase
         let arch_lower = arch.to_lowercase();
         let normalized = match arch_lower.as_str() {
@@ -349,7 +390,7 @@ impl EnvLoader {
             "aarch64" => "arm64",
             other => other,
         };
-        
+
         Some(normalized.to_string())
     }
 
@@ -379,11 +420,21 @@ impl EnvLoader {
     /// }
     /// ```
     pub fn resolve_user() -> Option<String> {
-        std::env::var("DOTENVAGE_USER").ok().filter(|s| !s.is_empty())
+        std::env::var("DOTENVAGE_USER")
+            .ok()
+            .filter(|s| !s.is_empty())
             .or_else(|| std::env::var("EKG_USER").ok().filter(|s| !s.is_empty()))
             .or_else(|| std::env::var("GITHUB_ACTOR").ok().filter(|s| !s.is_empty()))
-            .or_else(|| std::env::var("GITHUB_TRIGGERING_ACTOR").ok().filter(|s| !s.is_empty()))
-            .or_else(|| std::env::var("GITHUB_REPOSITORY_OWNER").ok().filter(|s| !s.is_empty()))
+            .or_else(|| {
+                std::env::var("GITHUB_TRIGGERING_ACTOR")
+                    .ok()
+                    .filter(|s| !s.is_empty())
+            })
+            .or_else(|| {
+                std::env::var("GITHUB_REPOSITORY_OWNER")
+                    .ok()
+                    .filter(|s| !s.is_empty())
+            })
             .or_else(|| std::env::var("USER").ok().filter(|s| !s.is_empty()))
             .or_else(|| std::env::var("USERNAME").ok().filter(|s| !s.is_empty()))
             .map(|u| u.to_lowercase())
@@ -411,31 +462,30 @@ impl EnvLoader {
     /// ```
     pub fn resolve_pr_number() -> Option<String> {
         // Only resolve in GitHub Actions pull request context
-        if let Ok(event) = std::env::var("GITHUB_EVENT_NAME") {
-            if event.starts_with("pull_request") {
-                if let Some(pr) = std::env::var("PR_NUMBER").ok().filter(|s| !s.is_empty()) {
-                    return Some(pr);
-                }
-            }
+        if let Ok(event) = std::env::var("GITHUB_EVENT_NAME")
+            && event.starts_with("pull_request")
+            && let Some(pr) = std::env::var("PR_NUMBER").ok().filter(|s| !s.is_empty())
+        {
+            return Some(pr);
         }
-        
+
         // Try parsing from GITHUB_REF
-        if let Ok(gref) = std::env::var("GITHUB_REF") {
-            if let Some(idx) = gref.find("/pull/") {
-                let mut n = String::new();
-                for c in gref[idx+6..].chars() {
-                    if c.is_ascii_digit() {
-                        n.push(c);
-                    } else {
-                        break;
-                    }
-                }
-                if !n.is_empty() {
-                    return Some(n);
+        if let Ok(gref) = std::env::var("GITHUB_REF")
+            && let Some(idx) = gref.find("/pull/")
+        {
+            let mut n = String::new();
+            for c in gref[idx + 6..].chars() {
+                if c.is_ascii_digit() {
+                    n.push(c);
+                } else {
+                    break;
                 }
             }
+            if !n.is_empty() {
+                return Some(n);
+            }
         }
-        
+
         None
     }
 }
@@ -464,7 +514,13 @@ impl AutoDetectPatterns {
     /// Variables containing any of these substrings (case-insensitive) will be
     /// automatically encrypted unless they match a pattern in [`NEVER_ENCRYPT`](Self::NEVER_ENCRYPT).
     pub const ENCRYPT_PATTERNS: &'static [&'static str] = &[
-        "TOKEN", "SECRET", "PASSWORD", "CREDENTIAL", "_KEY", "API_KEY", "PRIVATE_KEY",
+        "TOKEN",
+        "SECRET",
+        "PASSWORD",
+        "CREDENTIAL",
+        "_KEY",
+        "API_KEY",
+        "PRIVATE_KEY",
     ];
 
     /// Variables that should never be encrypted.
@@ -472,7 +528,16 @@ impl AutoDetectPatterns {
     /// These are typically configuration values that need to be plaintext for
     /// readability or compatibility reasons.
     pub const NEVER_ENCRYPT: &'static [&'static str] = &[
-        "AWS_REGION", "FLY_PRIMARY_REGION", "PORT", "RUST_LOG", "DATABASE_NAME", "APP_NAME", "ENDPOINT_URL", "ORG", "PUBLIC_KEY", "PUB_KEY",
+        "AWS_REGION",
+        "FLY_PRIMARY_REGION",
+        "PORT",
+        "RUST_LOG",
+        "DATABASE_NAME",
+        "APP_NAME",
+        "ENDPOINT_URL",
+        "ORG",
+        "PUBLIC_KEY",
+        "PUB_KEY",
     ];
 
     /// Returns `true` if an environment variable name should be encrypted.
@@ -491,7 +556,9 @@ impl AutoDetectPatterns {
     /// ```
     pub fn should_encrypt(key: &str) -> bool {
         let key_upper = key.to_uppercase();
-        if Self::NEVER_ENCRYPT.iter().any(|p| key_upper.contains(p)) { return false; }
+        if Self::NEVER_ENCRYPT.iter().any(|p| key_upper.contains(p)) {
+            return false;
+        }
         Self::ENCRYPT_PATTERNS.iter().any(|p| key_upper.contains(p))
     }
 }

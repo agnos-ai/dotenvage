@@ -31,7 +31,10 @@ enum Commands {
         auto: bool,
     },
     /// Edit an environment file (decrypts, opens editor, re-encrypts)
-    Edit { #[arg(default_value = ".env.local")] file: PathBuf },
+    Edit {
+        #[arg(default_value = ".env.local")]
+        file: PathBuf,
+    },
     /// Set a secret value
     Set {
         /// KEY=VALUE pair to set
@@ -58,12 +61,18 @@ enum Commands {
         verbose: bool,
     },
     /// Dump environment file to stdout with all values decrypted
-    Dump { #[arg(default_value = ".env.local")] file: PathBuf },
+    Dump {
+        #[arg(default_value = ".env.local")]
+        file: PathBuf,
+    },
 }
 
 #[derive(Parser, Debug, Clone)]
-#[command(name = "dotenvage", version, about = "Dotenv with age encryption")] 
-struct Cli { #[command(subcommand)] command: Commands }
+#[command(name = "dotenvage", version, about = "Dotenv with age encryption")]
+struct Cli {
+    #[command(subcommand)]
+    command: Commands,
+}
 
 fn parse_env_file(content: &str) -> Result<HashMap<String, String>> {
     dotenvy::from_read_iter(content.as_bytes())
@@ -102,9 +111,12 @@ fn main() -> Result<()> {
 
 fn keygen(output: Option<PathBuf>, force: bool) -> Result<()> {
     let manager = SecretManager::generate().context("Failed to generate key")?;
-    let out = output.unwrap_or_else(|| SecretManager::default_key_path());
+    let out = output.unwrap_or_else(SecretManager::default_key_path);
     if out.exists() && !force {
-        anyhow::bail!("Key file already exists at {}. Use --force to overwrite.", out.display());
+        anyhow::bail!(
+            "Key file already exists at {}. Use --force to overwrite.",
+            out.display()
+        );
     }
     manager.save_key(&out).context("Failed to save key")?;
     println!("✓ Private key saved to: {}", out.display());
@@ -114,30 +126,46 @@ fn keygen(output: Option<PathBuf>, force: bool) -> Result<()> {
 
 fn encrypt(file: PathBuf, keys: Option<Vec<String>>, auto: bool) -> Result<()> {
     let manager = SecretManager::new().context("Failed to load encryption key")?;
-    if !file.exists() { anyhow::bail!("File not found: {}", file.display()); }
+    if !file.exists() {
+        anyhow::bail!("File not found: {}", file.display());
+    }
     let content = std::fs::read_to_string(&file)
         .with_context(|| format!("Failed to read {}", file.display()))?;
     let mut vars = parse_env_file(&content)?;
     let mut encrypted_count = 0;
-    let keys_to_encrypt: Vec<String> = if let Some(specific) = keys { specific } else if auto {
-        vars.keys().filter(|k| AutoDetectPatterns::should_encrypt(k)).cloned().collect()
-    } else { anyhow::bail!("Either --keys or --auto must be specified"); };
+    let keys_to_encrypt: Vec<String> = if let Some(specific) = keys {
+        specific
+    } else if auto {
+        vars.keys()
+            .filter(|k| AutoDetectPatterns::should_encrypt(k))
+            .cloned()
+            .collect()
+    } else {
+        anyhow::bail!("Either --keys or --auto must be specified");
+    };
     for key in &keys_to_encrypt {
-        if let Some(value) = vars.get(key) {
-            if !SecretManager::is_encrypted(value) {
-                let encrypted = manager.encrypt_value(value)
-                    .with_context(|| format!("Failed to encrypt {}", key))?;
-                vars.insert(key.clone(), encrypted);
-                encrypted_count += 1;
-            }
+        if let Some(value) = vars.get(key)
+            && !SecretManager::is_encrypted(value)
+        {
+            let encrypted = manager
+                .encrypt_value(value)
+                .with_context(|| format!("Failed to encrypt {}", key))?;
+            vars.insert(key.clone(), encrypted);
+            encrypted_count += 1;
         }
     }
     write_env_file(&file, &vars)?;
-    println!("✓ Encrypted {} value(s) in {}", encrypted_count, file.display());
+    println!(
+        "✓ Encrypted {} value(s) in {}",
+        encrypted_count,
+        file.display()
+    );
     if encrypted_count > 0 {
         println!("  Encrypted keys:");
         for key in &keys_to_encrypt {
-            if vars.get(key).map_or(false, |v| SecretManager::is_encrypted(v)) { println!("    - {}", key); }
+            if vars.get(key).is_some_and(|v| SecretManager::is_encrypted(v)) {
+                println!("    - {}", key);
+            }
         }
     }
     Ok(())
@@ -145,7 +173,9 @@ fn encrypt(file: PathBuf, keys: Option<Vec<String>>, auto: bool) -> Result<()> {
 
 fn edit(file: PathBuf) -> Result<()> {
     let manager = SecretManager::new().context("Failed to load encryption key")?;
-    if !file.exists() { anyhow::bail!("File not found: {}", file.display()); }
+    if !file.exists() {
+        anyhow::bail!("File not found: {}", file.display());
+    }
     let content = std::fs::read_to_string(&file)
         .with_context(|| format!("Failed to read {}", file.display()))?;
     let mut vars = parse_env_file(&content)?;
@@ -153,24 +183,38 @@ fn edit(file: PathBuf) -> Result<()> {
     for (key, value) in &mut vars {
         if SecretManager::is_encrypted(value) {
             keys_to_encrypt.push(key.clone());
-            *value = manager.decrypt_value(value).with_context(|| format!("Failed to decrypt {}", key))?;
+            *value = manager
+                .decrypt_value(value)
+                .with_context(|| format!("Failed to decrypt {}", key))?;
         }
     }
-    let temp = tempfile::Builder::new().suffix(".env").tempfile().context("Failed to create temp file")?;
+    let temp = tempfile::Builder::new()
+        .suffix(".env")
+        .tempfile()
+        .context("Failed to create temp file")?;
     write_env_file(temp.path(), &vars)?;
     let original = std::fs::read_to_string(temp.path()).context("Failed to read temp file")?;
     let editor = std::env::var("EDITOR").unwrap_or_else(|_| "vi".to_string());
-    let status = std::process::Command::new(&editor).arg(temp.path()).status()
+    let status = std::process::Command::new(&editor)
+        .arg(temp.path())
+        .status()
         .with_context(|| format!("Failed to launch editor: {}", editor))?;
-    if !status.success() { anyhow::bail!("Editor exited with non-zero status"); }
+    if !status.success() {
+        anyhow::bail!("Editor exited with non-zero status");
+    }
     let edited = std::fs::read_to_string(temp.path()).context("Failed to read edited file")?;
-    if edited == original { println!("No changes made."); return Ok(()); }
+    if edited == original {
+        println!("No changes made.");
+        return Ok(());
+    }
     let mut edited_vars = parse_env_file(&edited)?;
     for key in &keys_to_encrypt {
-        if let Some(value) = edited_vars.get_mut(key) {
-            if !SecretManager::is_encrypted(value) {
-                *value = manager.encrypt_value(value).with_context(|| format!("Failed to encrypt {}", key))?;
-            }
+        if let Some(value) = edited_vars.get_mut(key)
+            && !SecretManager::is_encrypted(value)
+        {
+            *value = manager
+                .encrypt_value(value)
+                .with_context(|| format!("Failed to encrypt {}", key))?;
         }
     }
     write_env_file(&file, &edited_vars)?;
@@ -182,13 +226,26 @@ fn set(pair: String, file: PathBuf) -> Result<()> {
     let manager = SecretManager::new().context("Failed to load encryption key")?;
     let (key, value) = pair.split_once('=').context("Invalid KEY=VALUE format")?;
     let mut vars = if file.exists() {
-        let content = std::fs::read_to_string(&file).with_context(|| format!("Failed to read {}", file.display()))?;
+        let content = std::fs::read_to_string(&file)
+            .with_context(|| format!("Failed to read {}", file.display()))?;
         parse_env_file(&content)?
-    } else { HashMap::new() };
-    let final_value = if AutoDetectPatterns::should_encrypt(key) { manager.encrypt_value(value).context("Failed to encrypt value")? } else { value.to_string() };
+    } else {
+        HashMap::new()
+    };
+    let final_value = if AutoDetectPatterns::should_encrypt(key) {
+        manager
+            .encrypt_value(value)
+            .context("Failed to encrypt value")?
+    } else {
+        value.to_string()
+    };
     vars.insert(key.to_string(), final_value.clone());
     write_env_file(&file, &vars)?;
-    let status = if SecretManager::is_encrypted(&final_value) { "encrypted" } else { "plain" };
+    let status = if SecretManager::is_encrypted(&final_value) {
+        "encrypted"
+    } else {
+        "plain"
+    };
     println!("✓ Set {} ({}) in {}", key, status, file.display());
     Ok(())
 }
@@ -196,9 +253,12 @@ fn set(pair: String, file: PathBuf) -> Result<()> {
 fn get(key: String, file: Option<PathBuf>) -> Result<()> {
     let manager = SecretManager::new().context("Failed to load encryption key")?;
     let value = if let Some(file_path) = file {
-        let content = std::fs::read_to_string(&file_path).with_context(|| format!("Failed to read {}", file_path.display()))?;
+        let content = std::fs::read_to_string(&file_path)
+            .with_context(|| format!("Failed to read {}", file_path.display()))?;
         let vars = parse_env_file(&content)?;
-        vars.get(&key).with_context(|| format!("Key '{}' not found in {}", key, file_path.display()))?.clone()
+        vars.get(&key)
+            .with_context(|| format!("Key '{}' not found in {}", key, file_path.display()))?
+            .clone()
     } else {
         // Scan ordered files similar to EnvLoader
         let loader = dotenvage::EnvLoader::with_manager(manager.clone());
@@ -208,20 +268,27 @@ fn get(key: String, file: Option<PathBuf>) -> Result<()> {
             if p.exists() {
                 let content = std::fs::read_to_string(&p)?;
                 let vars = parse_env_file(&content)?;
-                if let Some(v) = vars.get(&key) { found = Some(v.clone()); }
+                if let Some(v) = vars.get(&key) {
+                    found = Some(v.clone());
+                }
             }
         }
         found.with_context(|| format!("Key '{}' not found in any .env* file", key))?
     };
-    let decrypted = manager.decrypt_value(&value).context("Failed to decrypt value")?;
+    let decrypted = manager
+        .decrypt_value(&value)
+        .context("Failed to decrypt value")?;
     println!("{}", decrypted);
     Ok(())
 }
 
 fn list(file: PathBuf, verbose: bool) -> Result<()> {
     let manager = SecretManager::new().context("Failed to load encryption key")?;
-    if !file.exists() { anyhow::bail!("File not found: {}", file.display()); }
-    let content = std::fs::read_to_string(&file).with_context(|| format!("Failed to read {}", file.display()))?;
+    if !file.exists() {
+        anyhow::bail!("File not found: {}", file.display());
+    }
+    let content = std::fs::read_to_string(&file)
+        .with_context(|| format!("Failed to read {}", file.display()))?;
     let vars = parse_env_file(&content)?;
     println!("Environment variables in {}:\n", file.display());
     let mut keys: Vec<_> = vars.keys().collect();
@@ -231,7 +298,13 @@ fn list(file: PathBuf, verbose: bool) -> Result<()> {
         let is_encrypted = SecretManager::is_encrypted(value);
         let lock_icon = if is_encrypted { "🔒" } else { "  " };
         if verbose {
-            let display_value = if is_encrypted { manager.decrypt_value(value).unwrap_or_else(|_| "<decryption failed>".to_string()) } else { value.clone() };
+            let display_value = if is_encrypted {
+                manager
+                    .decrypt_value(value)
+                    .unwrap_or_else(|_| "<decryption failed>".to_string())
+            } else {
+                value.clone()
+            };
             println!("{} {} = {}", lock_icon, key, display_value);
         } else {
             println!("{} {}", lock_icon, key);
@@ -242,15 +315,24 @@ fn list(file: PathBuf, verbose: bool) -> Result<()> {
 
 fn dump(file: PathBuf) -> Result<()> {
     let manager = SecretManager::new().context("Failed to load encryption key")?;
-    if !file.exists() { anyhow::bail!("File not found: {}", file.display()); }
-    let content = std::fs::read_to_string(&file).with_context(|| format!("Failed to read {}", file.display()))?;
+    if !file.exists() {
+        anyhow::bail!("File not found: {}", file.display());
+    }
+    let content = std::fs::read_to_string(&file)
+        .with_context(|| format!("Failed to read {}", file.display()))?;
     let vars = parse_env_file(&content)?;
     let mut keys: Vec<_> = vars.keys().cloned().collect();
     keys.sort();
     for key in keys {
         if let Some(value) = vars.get(&key) {
-            let decrypted_value = manager.decrypt_value(value).with_context(|| format!("Failed to decrypt {}", key))?;
-            if decrypted_value.contains(char::is_whitespace) || decrypted_value.contains('=') || decrypted_value.contains('"') || decrypted_value.contains('\'') {
+            let decrypted_value = manager
+                .decrypt_value(value)
+                .with_context(|| format!("Failed to decrypt {}", key))?;
+            if decrypted_value.contains(char::is_whitespace)
+                || decrypted_value.contains('=')
+                || decrypted_value.contains('"')
+                || decrypted_value.contains('\'')
+            {
                 println!("{}=\"{}\"", key, decrypted_value.replace('"', "\\\""));
             } else {
                 println!("{}={}", key, decrypted_value);

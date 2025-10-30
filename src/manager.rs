@@ -66,7 +66,9 @@ impl SecretManager {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn new() -> SecretsResult<Self> { Self::load_key() }
+    pub fn new() -> SecretsResult<Self> {
+        Self::load_key()
+    }
 
     /// Generates a new random identity.
     ///
@@ -84,18 +86,26 @@ impl SecretManager {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn generate() -> SecretsResult<Self> { Ok(Self { identity: x25519::Identity::generate() }) }
+    pub fn generate() -> SecretsResult<Self> {
+        Ok(Self {
+            identity: x25519::Identity::generate(),
+        })
+    }
 
     /// Creates a `SecretManager` from an existing identity.
     ///
     /// Use this when you have an age X25519 identity that you want to use directly.
-    pub fn from_identity(identity: x25519::Identity) -> Self { Self { identity } }
+    pub fn from_identity(identity: x25519::Identity) -> Self {
+        Self { identity }
+    }
 
     /// Gets the public key (recipient) corresponding to this identity.
     ///
     /// The public key can be shared with others who want to encrypt values
     /// that only you can decrypt.
-    pub fn public_key(&self) -> x25519::Recipient { self.identity.to_public() }
+    pub fn public_key(&self) -> x25519::Recipient {
+        self.identity.to_public()
+    }
 
     /// Gets the public key as a string in age format (starts with `age1`).
     ///
@@ -111,7 +121,9 @@ impl SecretManager {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn public_key_string(&self) -> String { self.public_key().to_string() }
+    pub fn public_key_string(&self) -> String {
+        self.public_key().to_string()
+    }
 
     /// Encrypts a plaintext value and wraps it in the format `ENC[AGE:b64:...]`.
     ///
@@ -193,7 +205,10 @@ impl SecretManager {
         let trimmed = value.trim();
 
         // Compact format: ENC[AGE:b64:...]
-        if let Some(inner) = trimmed.strip_prefix("ENC[AGE:b64:").and_then(|s| s.strip_suffix(']')) {
+        if let Some(inner) = trimmed
+            .strip_prefix("ENC[AGE:b64:")
+            .and_then(|s| s.strip_suffix(']'))
+        {
             let encrypted = base64::engine::general_purpose::STANDARD
                 .decode(inner)
                 .map_err(|e| SecretsError::DecryptionFailed(format!("invalid base64: {}", e)))?;
@@ -275,8 +290,9 @@ impl SecretManager {
     pub fn save_key(&self, path: impl AsRef<Path>) -> SecretsResult<()> {
         let path = path.as_ref();
         if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent)
-                .map_err(|e| SecretsError::KeySaveFailed(format!("create dir {}: {}", parent.display(), e)))?;
+            std::fs::create_dir_all(parent).map_err(|e| {
+                SecretsError::KeySaveFailed(format!("create dir {}: {}", parent.display(), e))
+            })?;
         }
         let identity_string = self.identity.to_string().expose_secret().to_string();
         std::fs::write(path, identity_string.as_bytes())
@@ -285,11 +301,14 @@ impl SecretManager {
         {
             use std::os::unix::fs::PermissionsExt;
             let mut perms = std::fs::metadata(path)
-                .map_err(|e| SecretsError::KeySaveFailed(format!("metadata {}: {}", path.display(), e)))?
+                .map_err(|e| {
+                    SecretsError::KeySaveFailed(format!("metadata {}: {}", path.display(), e))
+                })?
                 .permissions();
             perms.set_mode(0o600);
-            std::fs::set_permissions(path, perms)
-                .map_err(|e| SecretsError::KeySaveFailed(format!("chmod {}: {}", path.display(), e)))?;
+            std::fs::set_permissions(path, perms).map_err(|e| {
+                SecretsError::KeySaveFailed(format!("chmod {}: {}", path.display(), e))
+            })?;
         }
         Ok(())
     }
@@ -325,11 +344,19 @@ impl SecretManager {
     ///
     /// This is called internally by [`new`](Self::new).
     pub fn load_key() -> SecretsResult<Self> {
-        if let Ok(data) = std::env::var("DOTENVAGE_AGE_KEY") { return Self::load_from_string(&data); }
-        if let Ok(data) = std::env::var("AGE_KEY") { return Self::load_from_string(&data); }
+        if let Ok(data) = std::env::var("DOTENVAGE_AGE_KEY") {
+            return Self::load_from_string(&data);
+        }
+        if let Ok(data) = std::env::var("AGE_KEY") {
+            return Self::load_from_string(&data);
+        }
         let key_path = Self::default_key_path();
-        if key_path.exists() { return Self::load_from_file(&key_path); }
-        Err(SecretsError::KeyLoadFailed("no key found (DOTENVAGE_AGE_KEY, AGE_KEY, or default key file)".to_string()))
+        if key_path.exists() {
+            return Self::load_from_file(&key_path);
+        }
+        Err(SecretsError::KeyLoadFailed(
+            "no key found (DOTENVAGE_AGE_KEY, AGE_KEY, or default key file)".to_string(),
+        ))
     }
 
     fn load_from_file(path: &Path) -> SecretsResult<Self> {
@@ -362,16 +389,28 @@ impl SecretManager {
     /// println!("Default key path: {}", path.display());
     /// ```
     pub fn default_key_path() -> PathBuf {
-        Self::xdg_base_dir().unwrap_or_else(|| PathBuf::from(".").join("dotenvage")).join("dotenvage.key")
+        Self::xdg_base_dir()
+            .unwrap_or_else(|| PathBuf::from(".").join("dotenvage"))
+            .join("dotenvage.key")
     }
 
     fn xdg_base_dir() -> Option<PathBuf> {
-        if let Ok(p) = std::env::var("XDG_STATE_HOME") { if !p.is_empty() { return Some(PathBuf::from(p).join("dotenvage")); } }
-        if let Ok(p) = std::env::var("XDG_CONFIG_HOME") { if !p.is_empty() { return Some(PathBuf::from(p).join("dotenvage")); } }
+        if let Ok(p) = std::env::var("XDG_STATE_HOME")
+            && !p.is_empty()
+        {
+            return Some(PathBuf::from(p).join("dotenvage"));
+        }
+        if let Ok(p) = std::env::var("XDG_CONFIG_HOME")
+            && !p.is_empty()
+        {
+            return Some(PathBuf::from(p).join("dotenvage"));
+        }
         let home = std::env::var("HOME").ok()?;
         let home_path = PathBuf::from(home);
         let state_dir = home_path.join(".local/state/dotenvage");
-        if state_dir.exists() || !home_path.join(".config/dotenvage").exists() { return Some(state_dir); }
+        if state_dir.exists() || !home_path.join(".config/dotenvage").exists() {
+            return Some(state_dir);
+        }
         Some(home_path.join(".config/dotenvage"))
     }
 }
@@ -386,7 +425,9 @@ mod tests {
         let plaintext = "sk_live_abc123";
         let encrypted = manager.encrypt_value(plaintext).expect("encryption failed");
         assert!(SecretManager::is_encrypted(&encrypted));
-        let decrypted = manager.decrypt_value(&encrypted).expect("decryption failed");
+        let decrypted = manager
+            .decrypt_value(&encrypted)
+            .expect("decryption failed");
         assert_eq!(plaintext, decrypted);
     }
 
@@ -394,7 +435,9 @@ mod tests {
     fn test_decrypt_unencrypted_value() {
         let manager = SecretManager::generate().expect("failed to generate manager");
         let plaintext = "not_encrypted";
-        let result = manager.decrypt_value(plaintext).expect("decrypt should pass through");
+        let result = manager
+            .decrypt_value(plaintext)
+            .expect("decrypt should pass through");
         assert_eq!(plaintext, result);
     }
 }

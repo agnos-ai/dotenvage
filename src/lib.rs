@@ -30,8 +30,8 @@
 //! - **Multiple Environments**: Support for .env, .env.local, .env.production, etc.
 
 pub mod error;
-pub mod manager;
 pub mod loader;
+pub mod manager;
 pub mod patterns;
 
 pub use crate::error::{SecretsError, SecretsResult};
