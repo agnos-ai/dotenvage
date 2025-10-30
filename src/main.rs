@@ -163,7 +163,10 @@ fn encrypt(file: PathBuf, keys: Option<Vec<String>>, auto: bool) -> Result<()> {
     if encrypted_count > 0 {
         println!("  Encrypted keys:");
         for key in &keys_to_encrypt {
-            if vars.get(key).is_some_and(|v| SecretManager::is_encrypted(v)) {
+            if vars
+                .get(key)
+                .is_some_and(|v| SecretManager::is_encrypted(v))
+            {
                 println!("    - {}", key);
             }
         }
