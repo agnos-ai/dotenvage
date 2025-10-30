@@ -31,7 +31,20 @@ PR and merge.
 
 ## Setup (One-time)
 
-### 1. Add crates.io Token to GitHub Secrets
+### 1. Install Required Tools
+
+For local version bumping:
+
+```bash
+cargo install cocogitto cargo-edit
+```
+
+- **`cocogitto`**: Conventional commits and changelog
+  generation
+- **`cargo-edit`**: Provides `cargo set-version` for
+  updating `Cargo.toml`
+
+### 2. Add crates.io Token to GitHub Secrets
 
 1. Get your crates.io API token:
 
