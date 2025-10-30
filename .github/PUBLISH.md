@@ -1,23 +1,33 @@
-# Publishing Guide (Cocogitto-based)
+# Publishing Guide
 
-This project uses **Cocogitto** for automated changelog
-generation and a **version-change detection** workflow for
-publishing.
+This project uses a **version-change detection** workflow
+for automated publishing to crates.io.
 
-## How It Works
+## Branch Protection & Linear History
+
+The `main` branch is protected with the following rules:
+
+- ✅ **No direct pushes** - all changes via pull requests
+- ✅ **Required approvals** - CODEOWNERS must approve
+- ✅ **Required CI checks** - all tests must pass
+- ✅ **Linear history** - only rebase merges allowed
+- ❌ No merge commits or squash merges
+
+This ensures a clean, linear git history.
+
+## How Publishing Works
 
 The CI workflow automatically detects when the version in
 `Cargo.toml` changes and:
 
 1. ✅ Runs all checks (format, clippy, build, test)
-2. 📝 Generates changelog from conventional commits using
-   Cocogitto
+2. 📝 Generates changelog from conventional commits
 3. 📌 Creates and pushes a git tag (e.g., `v0.0.2`)
 4. 🎉 Creates a GitHub Release with generated changelog
 5. 📦 Publishes to crates.io
 
-**No manual tagging required!** Just bump the version and
-push.
+**No manual tagging required!** Just bump the version in a
+PR and merge.
 
 ## Setup (One-time)
 
@@ -38,40 +48,41 @@ push.
    - Name: `CRATES_IO_TOKEN`
    - Value: `<your-token-here>`
 
-### 2. Install Cocogitto Locally (Optional but Recommended)
-
-```bash
-cargo install cocogitto
-
-# Validate your commits
-cog check
-
-# Verify changelog generation
-cog changelog --at v0.0.1
-```
-
 ## Publishing a New Version
 
-### Step-by-Step Process
+### Step-by-Step Process (via Pull Request)
+
+Since the `main` branch is protected, all changes must go
+through pull requests:
 
 ```bash
 # 1. Ensure you're on main and up to date
 git checkout main
 git pull origin main
 
-# 2. Update version in Cargo.toml
+# 2. Create a feature branch for the version bump
+git checkout -b release/v0.0.2
+
+# 3. Update version in Cargo.toml
 vim Cargo.toml  # Change version = "0.0.1" to "0.0.2"
 
-# 3. Commit the version bump (using conventional
+# 4. Commit the version bump (using conventional
 #    commit format)
 git add Cargo.toml
 git commit -m "chore: bump version to 0.0.2"
 
-# 4. Push to main
-git push origin main
+# 5. Push the branch to GitHub
+git push origin release/v0.0.2
 
-# 5. Watch the magic happen! ✨
-# GitHub Actions will automatically:
+# 6. Create a pull request
+gh pr create --title "chore: bump version to 0.0.2" \
+  --body "Release v0.0.2"
+
+# 7. Review and approve the PR (as CODEOWNER)
+# 8. Merge using rebase (to maintain linear history)
+
+# 9. Watch the magic happen! ✨
+# After merging, GitHub Actions will automatically:
 #   - Run all checks
 #   - Generate changelog from commits
 #   - Create git tag v0.0.2
