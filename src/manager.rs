@@ -343,6 +343,13 @@ impl SecretManager {
     /// Loads the identity from standard locations.
     ///
     /// This is called internally by [`new`](Self::new).
+    ///
+    /// ## Key Loading Priority
+    ///
+    /// 1. `DOTENVAGE_AGE_KEY` env var (full identity string)
+    /// 2. `AGE_KEY` env var (full identity string)
+    /// 3. Key file at path determined by `AGE_KEY_NAME` from .env
+    /// 4. Default key file: `~/.local/state/{CARGO_PKG_NAME or "dotenvage"}/dotenvage.key`
     pub fn load_key() -> SecretsResult<Self> {
         if let Ok(data) = std::env::var("DOTENVAGE_AGE_KEY") {
             return Self::load_from_string(&data);
@@ -350,12 +357,12 @@ impl SecretManager {
         if let Ok(data) = std::env::var("AGE_KEY") {
             return Self::load_from_string(&data);
         }
-        let key_path = Self::default_key_path();
+        let key_path = Self::key_path_from_env_or_default();
         if key_path.exists() {
             return Self::load_from_file(&key_path);
         }
         Err(SecretsError::KeyLoadFailed(
-            "no key found (DOTENVAGE_AGE_KEY, AGE_KEY, or default key file)".to_string(),
+            format!("no key found (DOTENVAGE_AGE_KEY, AGE_KEY, or key file at {})", key_path.display()),
         ))
     }
 
@@ -372,13 +379,42 @@ impl SecretManager {
         Ok(Self { identity })
     }
 
-    /// Returns the default key path under XDG directories.
+    /// Returns the key path based on AGE_KEY_NAME or project default.
     ///
-    /// The path is determined in this order:
-    /// 1. `$XDG_STATE_HOME/dotenvage/dotenvage.key`
-    /// 2. `$XDG_CONFIG_HOME/dotenvage/dotenvage.key`
-    /// 3. `~/.local/state/dotenvage/dotenvage.key`
-    /// 4. `~/.config/dotenvage/dotenvage.key` (if it already exists)
+    /// ## Priority:
+    /// 1. If `AGE_KEY_NAME` is set in environment (e.g., from .env), use it
+    /// 2. Otherwise default to `{CARGO_PKG_NAME}/dotenvage`
+    ///
+    /// ## Path Construction:
+    /// - XDG-compliant: `$XDG_STATE_HOME/{name}.key`
+    /// - Fallback: `~/.local/state/{name}.key`
+    ///
+    /// ## Examples
+    ///
+    /// With `AGE_KEY_NAME=ekg/dr-rs-ekg` in .env:
+    /// - Returns: `~/.local/state/ekg/dr-rs-ekg.key`
+    ///
+    /// Without AGE_KEY_NAME (default for "ekg-backend" crate):
+    /// - Returns: `~/.local/state/ekg-backend/dotenvage.key`
+    pub fn key_path_from_env_or_default() -> PathBuf {
+        // Check if AGE_KEY_NAME is set (typically from .env)
+        let key_name = std::env::var("AGE_KEY_NAME")
+            .ok()
+            .filter(|s| !s.trim().is_empty())
+            .unwrap_or_else(|| {
+                // Default to CARGO_PKG_NAME/dotenvage for project-specific keys
+                format!("{}/dotenvage", env!("CARGO_PKG_NAME"))
+            });
+
+        // Construct XDG-compliant path
+        Self::xdg_base_dir_for(&key_name)
+            .unwrap_or_else(|| PathBuf::from(".").join(&key_name))
+            .with_extension("key")
+    }
+
+    /// Returns the default key path (for backward compatibility).
+    ///
+    /// Prefer using `key_path_from_env_or_default()` which respects AGE_KEY_NAME.
     ///
     /// # Examples
     ///
@@ -389,29 +425,32 @@ impl SecretManager {
     /// println!("Default key path: {}", path.display());
     /// ```
     pub fn default_key_path() -> PathBuf {
-        Self::xdg_base_dir()
+        Self::xdg_base_dir_for("dotenvage")
             .unwrap_or_else(|| PathBuf::from(".").join("dotenvage"))
             .join("dotenvage.key")
     }
 
-    fn xdg_base_dir() -> Option<PathBuf> {
-        if let Ok(p) = std::env::var("XDG_STATE_HOME")
-            && !p.is_empty()
-        {
-            return Some(PathBuf::from(p).join("dotenvage"));
+    fn xdg_base_dir_for(name: &str) -> Option<PathBuf> {
+        if let Ok(p) = std::env::var("XDG_STATE_HOME") {
+            if !p.is_empty() {
+                return Some(PathBuf::from(p).join(name));
+            }
         }
-        if let Ok(p) = std::env::var("XDG_CONFIG_HOME")
-            && !p.is_empty()
-        {
-            return Some(PathBuf::from(p).join("dotenvage"));
+        if let Ok(p) = std::env::var("XDG_CONFIG_HOME") {
+            if !p.is_empty() {
+                return Some(PathBuf::from(p).join(name));
+            }
         }
-        let home = std::env::var("HOME").ok()?;
-        let home_path = PathBuf::from(home);
-        let state_dir = home_path.join(".local/state/dotenvage");
-        if state_dir.exists() || !home_path.join(".config/dotenvage").exists() {
-            return Some(state_dir);
+        if let Ok(home) = std::env::var("HOME") {
+            let home_path = PathBuf::from(home);
+            let state_dir = home_path.join(".local/state").join(name);
+            // Prefer state dir unless config dir already exists
+            if state_dir.exists() || !home_path.join(".config").join(name).exists() {
+                return Some(state_dir);
+            }
+            return Some(home_path.join(".config").join(name));
         }
-        Some(home_path.join(".config/dotenvage"))
+        None
     }
 }
 
@@ -439,5 +478,107 @@ mod tests {
             .decrypt_value(plaintext)
             .expect("decrypt should pass through");
         assert_eq!(plaintext, result);
+    }
+
+    #[test]
+    fn test_key_path_from_env_or_default_with_age_key_name() {
+        // This test must clear ALL env vars that affect key path discovery
+        let orig_age_key_name = std::env::var("AGE_KEY_NAME").ok();
+        let orig_xdg_state = std::env::var("XDG_STATE_HOME").ok();
+        let orig_xdg_config = std::env::var("XDG_CONFIG_HOME").ok();
+
+        // Test with AGE_KEY_NAME set
+        unsafe {
+            std::env::remove_var("XDG_CONFIG_HOME"); // Clear any XDG_CONFIG_HOME
+            std::env::set_var("AGE_KEY_NAME", "myproject/myapp");
+            std::env::set_var("XDG_STATE_HOME", "/tmp/xdg-state");
+        }
+
+        let path = SecretManager::key_path_from_env_or_default();
+        assert_eq!(path, std::path::PathBuf::from("/tmp/xdg-state/myproject/myapp.key"));
+
+        // Restore env
+        unsafe {
+            std::env::remove_var("AGE_KEY_NAME");
+            std::env::remove_var("XDG_STATE_HOME");
+            if let Some(val) = orig_age_key_name {
+                std::env::set_var("AGE_KEY_NAME", val);
+            }
+            if let Some(val) = orig_xdg_state {
+                std::env::set_var("XDG_STATE_HOME", val);
+            }
+            if let Some(val) = orig_xdg_config {
+                std::env::set_var("XDG_CONFIG_HOME", val);
+            }
+        }
+    }
+
+    #[test]
+    fn test_key_path_from_env_or_default_without_age_key_name() {
+        // Save original env
+        let orig_age_key_name = std::env::var("AGE_KEY_NAME").ok();
+        let orig_xdg_state = std::env::var("XDG_STATE_HOME").ok();
+        let orig_xdg_config = std::env::var("XDG_CONFIG_HOME").ok();
+
+        // Test without AGE_KEY_NAME - should default to CARGO_PKG_NAME/dotenvage
+        unsafe {
+            std::env::remove_var("AGE_KEY_NAME");
+            std::env::remove_var("XDG_CONFIG_HOME"); // Clear any XDG_CONFIG_HOME
+            std::env::set_var("XDG_STATE_HOME", "/tmp/xdg-state");
+        }
+
+        let path = SecretManager::key_path_from_env_or_default();
+        let expected = format!("/tmp/xdg-state/{}/dotenvage.key", env!("CARGO_PKG_NAME"));
+        assert_eq!(path, std::path::PathBuf::from(expected));
+
+        // Restore env
+        unsafe {
+            std::env::remove_var("XDG_STATE_HOME");
+            if let Some(val) = orig_age_key_name {
+                std::env::set_var("AGE_KEY_NAME", val);
+            }
+            if let Some(val) = orig_xdg_state {
+                std::env::set_var("XDG_STATE_HOME", val);
+            }
+            if let Some(val) = orig_xdg_config {
+                std::env::set_var("XDG_CONFIG_HOME", val);
+            }
+        }
+    }
+
+    #[test]
+    fn test_xdg_base_dir_for() {
+        // Save original env
+        let orig_xdg_state = std::env::var("XDG_STATE_HOME").ok();
+        let orig_home = std::env::var("HOME").ok();
+
+        // Test with XDG_STATE_HOME
+        unsafe {
+            std::env::set_var("XDG_STATE_HOME", "/custom/state");
+        }
+        let path = SecretManager::xdg_base_dir_for("test");
+        assert_eq!(path, Some(std::path::PathBuf::from("/custom/state/test")));
+
+        // Test with HOME fallback
+        unsafe {
+            std::env::remove_var("XDG_STATE_HOME");
+            std::env::set_var("HOME", "/home/user");
+        }
+        let path = SecretManager::xdg_base_dir_for("test");
+        assert_eq!(path, Some(std::path::PathBuf::from("/home/user/.local/state/test")));
+
+        // Restore env
+        unsafe {
+            if let Some(val) = orig_xdg_state {
+                std::env::set_var("XDG_STATE_HOME", val);
+            } else {
+                std::env::remove_var("XDG_STATE_HOME");
+            }
+            if let Some(val) = orig_home {
+                std::env::set_var("HOME", val);
+            } else {
+                std::env::remove_var("HOME");
+            }
+        }
     }
 }

@@ -61,10 +61,38 @@ let dec = manager.decrypt_value(&enc)?;
 
 ## Key Management
 
-- Reads identity from `DOTENVAGE_AGE_KEY` (preferred) or
-  `AGE_KEY` env vars
-- Otherwise uses XDG path (e.g.,
-  `~/.local/state/dotenvage/dotenvage.key`)
+Keys are discovered in this priority order:
+
+1. **`DOTENVAGE_AGE_KEY`** env var (full identity string)
+2. **`AGE_KEY`** env var (full identity string)  
+3. **`AGE_KEY_NAME`** from .env ? key file at `$XDG_STATE_HOME/{AGE_KEY_NAME}.key`
+4. **Default**: `~/.local/state/{CARGO_PKG_NAME}/dotenvage.key`
+
+### Project-Specific Keys
+
+For multi-project setups, configure in `.env`:
+
+```bash
+# .env (committed, not secret)
+AGE_KEY_NAME=myproject/myapp
+```
+
+Key stored at: `~/.local/state/myproject/myapp.key`
+
+### XDG Base Directories
+
+- Prefers `$XDG_STATE_HOME` 
+- Falls back to `~/.local/state`
+- Or `$XDG_CONFIG_HOME` / `~/.config` (legacy)
+
+### CI/CD
+
+Set `DOTENVAGE_AGE_KEY` or `AGE_KEY` in CI secrets:
+
+```yaml
+env:
+  DOTENVAGE_AGE_KEY: ${{ secrets.AGE_KEY }}
+```
 
 ## License
 
