@@ -172,9 +172,7 @@ jobs:
       
       - name: Install Cocogitto
         run: |
-          curl -sSfL https://github.com/cocogitto/cocogitto/releases/latest/download/cocogitto-$(uname -m)-unknown-linux-musl.tar.gz | tar -xz
-          chmod +x cog
-          sudo mv cog /usr/local/bin/
+          cargo install --locked cocogitto
           cog --version
       
       - name: Configure Git
