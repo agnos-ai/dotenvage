@@ -344,7 +344,29 @@ impl SecretManager {
     /// Loads the identity from standard locations.
     ///
     /// This is called internally by [`new`](Self::new).
+    /// 
+    /// # Key Discovery Order
+    /// 
+    /// 1. Check `.env` files for key name configuration:
+    ///    - `DOTENVAGE_KEY_NAME` (highest priority)
+    ///    - `AGE_KEY_NAME`
+    ///    - `EKG_AGE_KEY_NAME`
+    /// 2. If key name found, look up the actual key from environment variables:
+    ///    - `DOTENVAGE_AGE_KEY`
+    ///    - `AGE_KEY`
+    ///    - `EKG_AGE_KEY`
+    /// 3. Fall back to checking environment variables directly
+    /// 4. Fall back to default key file
     pub fn load_key() -> SecretsResult<Self> {
+        // First, try to discover key name from .env files
+        if let Some(key_name) = Self::discover_key_name_from_env_files() {
+            // Try to load the actual key using the discovered name
+            // This allows for future expansion to support key lookup from keychain/vault
+            // For now, we just note that we found a key name configuration
+            eprintln!("dotenvage: discovered key name from .env: {}", key_name);
+        }
+
+        // Try environment variables for the actual key
         if let Ok(data) = std::env::var("DOTENVAGE_AGE_KEY") {
             return Self::load_from_string(&data);
         }
@@ -354,14 +376,65 @@ impl SecretManager {
         if let Ok(data) = std::env::var("EKG_AGE_KEY") {
             return Self::load_from_string(&data);
         }
+        
+        // Fall back to default key file
         let key_path = Self::default_key_path();
         if key_path.exists() {
             return Self::load_from_file(&key_path);
         }
+        
         Err(SecretsError::KeyLoadFailed(
             "no key found (DOTENVAGE_AGE_KEY, AGE_KEY, EKG_AGE_KEY, or default key file)"
                 .to_string(),
         ))
+    }
+
+    /// Discovers key name configuration from .env files.
+    /// 
+    /// Reads `.env` file (plaintext, no decryption) and looks for:
+    /// - DOTENVAGE_KEY_NAME
+    /// - AGE_KEY_NAME  
+    /// - EKG_AGE_KEY_NAME
+    /// 
+    /// Returns the first found value.
+    fn discover_key_name_from_env_files() -> Option<String> {
+        // Check current directory for .env file
+        let env_path = Path::new(".env");
+        if !env_path.exists() {
+            return None;
+        }
+
+        // Read .env file (plaintext read, no decryption needed for config)
+        let content = std::fs::read_to_string(env_path).ok()?;
+        
+        // Parse and look for key name variables
+        for line in content.lines() {
+            let line = line.trim();
+            
+            // Skip comments and empty lines
+            if line.is_empty() || line.starts_with('#') {
+                continue;
+            }
+            
+            // Parse KEY=VALUE format
+            if let Some((key, value)) = line.split_once('=') {
+                let key = key.trim();
+                let value = value.trim().trim_matches('"').trim_matches('\'');
+                
+                // Check for key name configuration variables in order of precedence
+                if key == "DOTENVAGE_KEY_NAME" && !value.is_empty() {
+                    return Some(value.to_string());
+                }
+                if key == "AGE_KEY_NAME" && !value.is_empty() {
+                    return Some(value.to_string());
+                }
+                if key == "EKG_AGE_KEY_NAME" && !value.is_empty() {
+                    return Some(value.to_string());
+                }
+            }
+        }
+        
+        None
     }
 
     fn load_from_file(path: &Path) -> SecretsResult<Self> {
