@@ -358,15 +358,7 @@ impl SecretManager {
     /// 3. Fall back to checking environment variables directly
     /// 4. Fall back to default key file
     pub fn load_key() -> SecretsResult<Self> {
-        // First, try to discover key name from .env files
-        if let Some(key_name) = Self::discover_key_name_from_env_files() {
-            // Try to load the actual key using the discovered name
-            // This allows for future expansion to support key lookup from keychain/vault
-            // For now, we just note that we found a key name configuration
-            eprintln!("dotenvage: discovered key name from .env: {}", key_name);
-        }
-
-        // Try environment variables for the actual key
+        // Try environment variables for the actual key first (highest priority)
         if let Ok(data) = std::env::var("DOTENVAGE_AGE_KEY") {
             return Self::load_from_string(&data);
         }
@@ -375,6 +367,14 @@ impl SecretManager {
         }
         if let Ok(data) = std::env::var("EKG_AGE_KEY") {
             return Self::load_from_string(&data);
+        }
+        
+        // Try to discover key name from .env files and construct path
+        if let Some(key_name) = Self::discover_key_name_from_env_files() {
+            let key_path = Self::key_path_from_name(&key_name);
+            if key_path.exists() {
+                return Self::load_from_file(&key_path);
+            }
         }
         
         // Fall back to default key file
@@ -448,6 +448,67 @@ impl SecretManager {
             .parse::<x25519::Identity>()
             .map_err(|e| SecretsError::KeyLoadFailed(format!("parse key: {}", e)))?;
         Ok(Self { identity })
+    }
+
+    /// Constructs a key path from a key name using XDG directories.
+    /// 
+    /// Given a key name like "ekg/dr-rs-ekg", constructs the path:
+    /// - `~/.local/state/ekg/dr-rs-ekg.key`
+    /// 
+    /// The key name is split on `/` to create subdirectories.
+    /// The last component becomes the filename with `.key` extension.
+    fn key_path_from_name(key_name: &str) -> PathBuf {
+        let base = Self::xdg_base_dir()
+            .unwrap_or_else(|| PathBuf::from("."));
+        
+        let parts: Vec<&str> = key_name.split('/').collect();
+        if parts.is_empty() {
+            return base.join("dotenvage.key");
+        }
+        
+        let mut path = PathBuf::new();
+        // All parts except the last become directories
+        for part in &parts[..parts.len().saturating_sub(1)] {
+            path.push(part);
+        }
+        
+        // Last part becomes the filename with .key extension
+        if let Some(filename) = parts.last() {
+            // Replace the base directory with the first component
+            if parts.len() > 1 {
+                // Multi-part: ~/.local/state/{first}/{rest}/{filename}.key
+                let first = parts[0];
+                let mut result = Self::xdg_state_dir_for(first);
+                for part in &parts[1..parts.len()-1] {
+                    result.push(part);
+                }
+                result.push(format!("{}.key", filename));
+                return result;
+            } else {
+                // Single part: ~/.local/state/{filename}/{filename}.key
+                return Self::xdg_state_dir_for(filename).join(format!("{}.key", filename));
+            }
+        }
+        
+        base.join("dotenvage.key")
+    }
+
+    /// Returns XDG state directory for a specific component.
+    /// 
+    /// Example: component="ekg" returns "~/.local/state/ekg"
+    fn xdg_state_dir_for(component: &str) -> PathBuf {
+        if let Ok(p) = std::env::var("XDG_STATE_HOME") {
+            if !p.is_empty() {
+                return PathBuf::from(p).join(component);
+            }
+        }
+        
+        if let Ok(home) = std::env::var("HOME") {
+            return PathBuf::from(home).join(".local/state").join(component);
+        }
+        
+        // Fallback
+        PathBuf::from(".").join(component)
     }
 
     /// Returns the default key path under XDG directories.
