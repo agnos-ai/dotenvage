@@ -32,5 +32,5 @@ tempfile = "3.15"
 
 [dev-dependencies]
 serial_test = "2.0"
-assert_cmd = "2.0"
+assert_cmd = "2.1"
 predicates = "3.1"
