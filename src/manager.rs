@@ -359,7 +359,8 @@ impl SecretManager {
             return Self::load_from_file(&key_path);
         }
         Err(SecretsError::KeyLoadFailed(
-            "no key found (DOTENVAGE_AGE_KEY, AGE_KEY, EKG_AGE_KEY, or default key file)".to_string(),
+            "no key found (DOTENVAGE_AGE_KEY, AGE_KEY, EKG_AGE_KEY, or default key file)"
+                .to_string(),
         ))
     }
 
