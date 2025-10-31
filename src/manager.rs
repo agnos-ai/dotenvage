@@ -50,7 +50,8 @@ impl SecretManager {
     ///
     /// 1. `DOTENVAGE_AGE_KEY` environment variable (full identity string)
     /// 2. `AGE_KEY` environment variable (for compatibility)
-    /// 3. Default key file at XDG path (e.g., `~/.local/state/dotenvage/dotenvage.key`)
+    /// 3. `EKG_AGE_KEY` environment variable (for EKG project compatibility)
+    /// 4. Default key file at XDG path (e.g., `~/.local/state/dotenvage/dotenvage.key`)
     ///
     /// # Errors
     ///
@@ -350,12 +351,15 @@ impl SecretManager {
         if let Ok(data) = std::env::var("AGE_KEY") {
             return Self::load_from_string(&data);
         }
+        if let Ok(data) = std::env::var("EKG_AGE_KEY") {
+            return Self::load_from_string(&data);
+        }
         let key_path = Self::default_key_path();
         if key_path.exists() {
             return Self::load_from_file(&key_path);
         }
         Err(SecretsError::KeyLoadFailed(
-            "no key found (DOTENVAGE_AGE_KEY, AGE_KEY, or default key file)".to_string(),
+            "no key found (DOTENVAGE_AGE_KEY, AGE_KEY, EKG_AGE_KEY, or default key file)".to_string(),
         ))
     }
 

@@ -61,8 +61,8 @@ let dec = manager.decrypt_value(&enc)?;
 
 ## Key Management
 
-- Reads identity from `DOTENVAGE_AGE_KEY` (preferred) or
-  `AGE_KEY` env vars
+- Reads identity from `DOTENVAGE_AGE_KEY` (preferred),
+  `AGE_KEY`, or `EKG_AGE_KEY` env vars
 - Otherwise uses XDG path (e.g.,
   `~/.local/state/dotenvage/dotenvage.key`)
 
