@@ -44,9 +44,10 @@ use crate::manager::SecretManager;
 /// 1. `.env` - Base configuration
 /// 2. `.env.<ENV>` - Environment-specific
 /// 3. `.env.<ENV>-<ARCH>` - Architecture-specific (if `<ARCH>` is set)
-/// 4. `.env.<ENV>.<USER>` or `.env.<ENV>-<ARCH>.<USER>` - User-specific
-///    overrides
-/// 5. `.env.pr-<PR_NUMBER>` - PR-specific (GitHub Actions only)
+/// 4. `.env.<USER>` - User-specific overrides (if `<USER>` is set)
+/// 5. `.env.<ENV>.<USER>` - User overrides for specific environment
+/// 6. `.env.<ENV>-<ARCH>.<USER>` - User overrides for env+arch combo
+/// 7. `.env.pr-<PR_NUMBER>` - PR-specific (GitHub Actions only)
 ///
 /// **Note**: Separators can be either `.` or `-` (e.g., `.env.local` or
 /// `.env-local`)
@@ -232,7 +233,11 @@ impl EnvLoader {
         // 4) User-specific layers
         let user = Self::resolve_user();
         if let Some(ref u) = user {
+            // .env.<USER> - user's personal overrides
+            Self::add_names_if_exist(dir, &mut paths, &[u]);
+            // .env.<ENV>.<USER> - user overrides for specific env
             Self::add_names_if_exist(dir, &mut paths, &[&env, u]);
+            // .env.<ENV>-<ARCH>.<USER> - user overrides for env+arch
             if let Some(ref a) = arch {
                 Self::add_names_if_exist(dir, &mut paths, &[&env, a, u]);
             }

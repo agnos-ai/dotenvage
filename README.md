@@ -79,9 +79,10 @@ Files are loaded in this order (later overrides earlier):
 1. **`.env`** - Base configuration
 2. **`.env.<ENV>`** - Environment-specific (e.g., `.env.local`, `.env.production`)
 3. **`.env.<ENV>-<ARCH>`** - Architecture-specific (e.g., `.env.local-arm64`)
-4. **`.env.<ENV>.<USER>`** - User-specific overrides (e.g., `.env.local.alice`)
-5. **`.env.<ENV>-<ARCH>.<USER>`** - Arch + user combo (e.g., `.env.local-arm64.alice`)
-6. **`.env.pr-<NUMBER>`** - PR-specific (GitHub Actions only)
+4. **`.env.<USER>`** - User-specific overrides (e.g., `.env.alice`)
+5. **`.env.<ENV>.<USER>`** - User overrides for specific environment (e.g., `.env.local.alice`)
+6. **`.env.<ENV>-<ARCH>.<USER>`** - User overrides for env+arch combo (e.g., `.env.local-arm64.alice`)
+7. **`.env.pr-<NUMBER>`** - PR-specific (GitHub Actions only)
 
 **All files can be safely committed to git** since secrets are encrypted.
 
