@@ -372,13 +372,17 @@ impl EnvLoader {
     ///
     /// 1. `DOTENVAGE_ARCH` environment variable (preferred)
     /// 2. `EKG_ARCH` environment variable (alternative)
-    /// 3. `TARGETARCH` environment variable (Docker multi-platform builds,
+    /// 3. `CARGO_CFG_TARGET_ARCH` environment variable (Cargo build-time, e.g.,
+    ///    "x86_64", "aarch64")
+    /// 4. `TARGET` environment variable (parsed for arch from target triple,
+    ///    e.g., "x86_64-unknown-linux-gnu" → "x86_64")
+    /// 5. `TARGETARCH` environment variable (Docker multi-platform builds,
     ///    e.g., "amd64", "arm64")
-    /// 4. `TARGETPLATFORM` environment variable (Docker, parsed for arch, e.g.,
+    /// 6. `TARGETPLATFORM` environment variable (Docker, parsed for arch, e.g.,
     ///    "linux/arm64" → "arm64")
-    /// 5. `RUNNER_ARCH` environment variable (GitHub Actions, e.g., "X64",
+    /// 7. `RUNNER_ARCH` environment variable (GitHub Actions, e.g., "X64",
     ///    "ARM64")
-    /// 6. Returns `None` if none are set
+    /// 8. Returns `None` if none are set
     ///
     /// The value is always converted to lowercase and normalized:
     /// - `"x64"`, `"amd64"`, `"x86_64"` → `"amd64"`
@@ -400,6 +404,18 @@ impl EnvLoader {
             .ok()
             .filter(|s| !s.is_empty())
             .or_else(|| std::env::var("EKG_ARCH").ok().filter(|s| !s.is_empty()))
+            .or_else(|| {
+                std::env::var("CARGO_CFG_TARGET_ARCH")
+                    .ok()
+                    .filter(|s| !s.is_empty())
+            })
+            .or_else(|| {
+                // Parse TARGET triple (e.g., "x86_64-unknown-linux-gnu" → "x86_64")
+                std::env::var("TARGET")
+                    .ok()
+                    .filter(|s| !s.is_empty())
+                    .and_then(|t| t.split('-').next().map(String::from))
+            })
             .or_else(|| std::env::var("TARGETARCH").ok().filter(|s| !s.is_empty()))
             .or_else(|| {
                 // Parse TARGETPLATFORM (e.g., "linux/arm64" → "arm64")

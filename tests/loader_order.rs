@@ -176,6 +176,66 @@ fn order_user_without_env() {
 
 #[test]
 #[serial]
+fn order_cargo_target_arch() {
+    clear_env(&[
+        "DOTENVAGE_ENV",
+        "EKG_ENV",
+        "DOTENVAGE_ARCH",
+        "EKG_ARCH",
+        "CARGO_CFG_TARGET_ARCH",
+        "TARGET",
+        "DOTENVAGE_USER",
+        "EKG_USER",
+        "GITHUB_EVENT_NAME",
+        "GITHUB_REF",
+        "PR_NUMBER",
+        "USER",
+        "USERNAME",
+    ]);
+    unsafe {
+        env::set_var("CARGO_CFG_TARGET_ARCH", "aarch64");
+    }
+    let tmp = tempfile::tempdir().unwrap();
+    std::fs::write(tmp.path().join(".env"), "").unwrap();
+    std::fs::write(tmp.path().join(".env.local"), "").unwrap();
+    std::fs::write(tmp.path().join(".env.local-arm64"), "").unwrap();
+    let loader = dotenvage::EnvLoader::with_manager(dotenvage::SecretManager::generate().unwrap());
+    let got = names(loader.resolve_env_paths(tmp.path()));
+    assert_eq!(got, vec![".env", ".env.local", ".env.local-arm64"]);
+}
+
+#[test]
+#[serial]
+fn order_target_triple() {
+    clear_env(&[
+        "DOTENVAGE_ENV",
+        "EKG_ENV",
+        "DOTENVAGE_ARCH",
+        "EKG_ARCH",
+        "CARGO_CFG_TARGET_ARCH",
+        "TARGET",
+        "DOTENVAGE_USER",
+        "EKG_USER",
+        "GITHUB_EVENT_NAME",
+        "GITHUB_REF",
+        "PR_NUMBER",
+        "USER",
+        "USERNAME",
+    ]);
+    unsafe {
+        env::set_var("TARGET", "x86_64-unknown-linux-gnu");
+    }
+    let tmp = tempfile::tempdir().unwrap();
+    std::fs::write(tmp.path().join(".env"), "").unwrap();
+    std::fs::write(tmp.path().join(".env.local"), "").unwrap();
+    std::fs::write(tmp.path().join(".env.local-amd64"), "").unwrap();
+    let loader = dotenvage::EnvLoader::with_manager(dotenvage::SecretManager::generate().unwrap());
+    let got = names(loader.resolve_env_paths(tmp.path()));
+    assert_eq!(got, vec![".env", ".env.local", ".env.local-amd64"]);
+}
+
+#[test]
+#[serial]
 fn order_github_pr_number() {
     clear_env(&[
         "DOTENVAGE_ENV",
