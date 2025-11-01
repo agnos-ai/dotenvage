@@ -44,6 +44,7 @@ pub use crate::error::{
     SecretsResult,
 };
 pub use crate::loader::{
+    Arch,
     AutoDetectPatterns,
     EnvLoader,
 };

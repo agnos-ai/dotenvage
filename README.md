@@ -91,9 +91,25 @@ Files are loaded in this order (later overrides earlier):
 ### Placeholders
 
 - **`<ENV>`**: From `DOTENVAGE_ENV`, `EKG_ENV`, `VERCEL_ENV`, `NODE_ENV`, or defaults to `local`
-- **`<ARCH>`**: From `DOTENVAGE_ARCH` or `EKG_ARCH` (e.g., `arm64`, `x86_64`)
+- **`<ARCH>`**: From `DOTENVAGE_ARCH`, `EKG_ARCH`, `CARGO_CFG_TARGET_ARCH`, `TARGET`, `TARGETARCH`, `TARGETPLATFORM`, or `RUNNER_ARCH`
 - **`<USER>`**: From `DOTENVAGE_USER`, `EKG_USER`, or system username
 - **`<PR_NUMBER>`**: Auto-detected from GitHub Actions `GITHUB_REF`
+
+### Supported Architectures
+
+The `<ARCH>` placeholder supports these canonical values (with normalization):
+
+| Canonical | File Example | Aliases (normalized to canonical) |
+|-----------|--------------|-----------------------------------|
+| `amd64` | `.env.local-amd64` | `x64`, `x86_64`, `x86-64` |
+| `arm64` | `.env.prod-arm64` | `aarch64` |
+| `arm` | `.env.local-arm` | `armv7`, `armv7l`, `armhf` |
+| `i386` | `.env.local-i386` | `i686`, `x86` |
+| `riscv64` | `.env.local-riscv64` | `riscv64gc` |
+| `ppc64le` | `.env.local-ppc64le` | `powerpc64le` |
+| `s390x` | `.env.local-s390x` | - |
+
+**Note**: Unknown architecture values are passed through as lowercase (e.g., `docker-s3`) for custom use cases.
 
 ### Example
 

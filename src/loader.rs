@@ -16,6 +16,96 @@ use crate::error::{
 };
 use crate::manager::SecretManager;
 
+/// Supported CPU architectures for file naming.
+///
+/// These are the canonical architecture names used in `.env.<ARCH>` file
+/// patterns. Input values are normalized to these canonical forms.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Arch {
+    /// AMD64/x86-64 architecture
+    ///
+    /// Matches: `amd64`, `x64`, `x86_64`
+    Amd64,
+
+    /// ARM64/AArch64 architecture
+    ///
+    /// Matches: `arm64`, `aarch64`
+    Arm64,
+
+    /// 32-bit ARM architecture
+    ///
+    /// Matches: `arm`, `armv7`, `armv7l`
+    Arm,
+
+    /// 32-bit x86 architecture
+    ///
+    /// Matches: `i386`, `i686`, `x86`
+    I386,
+
+    /// RISC-V 64-bit architecture
+    ///
+    /// Matches: `riscv64`, `riscv64gc`
+    Riscv64,
+
+    /// PowerPC 64-bit Little Endian
+    ///
+    /// Matches: `ppc64le`, `powerpc64le`
+    Ppc64le,
+
+    /// IBM System/390 (s390x)
+    ///
+    /// Matches: `s390x`
+    S390x,
+}
+
+impl Arch {
+    /// Returns the canonical file name suffix for this architecture.
+    ///
+    /// This is the value used in `.env.<ARCH>` file patterns.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Amd64 => "amd64",
+            Self::Arm64 => "arm64",
+            Self::Arm => "arm",
+            Self::I386 => "i386",
+            Self::Riscv64 => "riscv64",
+            Self::Ppc64le => "ppc64le",
+            Self::S390x => "s390x",
+        }
+    }
+}
+
+impl std::fmt::Display for Arch {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
+impl std::str::FromStr for Arch {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let s_lower = s.to_lowercase();
+        match s_lower.as_str() {
+            // AMD64 / x86-64
+            "amd64" | "x64" | "x86_64" | "x86-64" => Ok(Self::Amd64),
+            // ARM64 / AArch64
+            "arm64" | "aarch64" => Ok(Self::Arm64),
+            // 32-bit ARM
+            "arm" | "armv7" | "armv7l" | "armhf" => Ok(Self::Arm),
+            // 32-bit x86
+            "i386" | "i686" | "x86" => Ok(Self::I386),
+            // RISC-V 64
+            "riscv64" | "riscv64gc" => Ok(Self::Riscv64),
+            // PowerPC 64 LE
+            "ppc64le" | "powerpc64le" => Ok(Self::Ppc64le),
+            // s390x
+            "s390x" => Ok(Self::S390x),
+            _ => Err(()),
+        }
+    }
+}
+
 /// Loads environment files with automatic decryption of encrypted values.
 ///
 /// `EnvLoader` reads `.env` files in a specific order and automatically
@@ -384,9 +474,21 @@ impl EnvLoader {
     ///    "ARM64")
     /// 8. Returns `None` if none are set
     ///
-    /// The value is always converted to lowercase and normalized:
-    /// - `"x64"`, `"amd64"`, `"x86_64"` → `"amd64"`
-    /// - `"aarch64"` → `"arm64"`
+    /// # Supported Architectures
+    ///
+    /// The following architectures are recognized and normalized to canonical
+    /// names:
+    ///
+    /// - **`amd64`**: AMD64/x86-64 (aliases: `x64`, `x86_64`, `x86-64`)
+    /// - **`arm64`**: ARM 64-bit (aliases: `aarch64`)
+    /// - **`arm`**: ARM 32-bit (aliases: `armv7`, `armv7l`, `armhf`)
+    /// - **`i386`**: x86 32-bit (aliases: `i686`, `x86`)
+    /// - **`riscv64`**: RISC-V 64-bit (aliases: `riscv64gc`)
+    /// - **`ppc64le`**: PowerPC 64-bit LE (aliases: `powerpc64le`)
+    /// - **`s390x`**: IBM System/390
+    ///
+    /// Unknown values are passed through as-is (lowercase) for custom use
+    /// cases.
     ///
     /// # Examples
     ///
@@ -426,15 +528,13 @@ impl EnvLoader {
             })
             .or_else(|| std::env::var("RUNNER_ARCH").ok().filter(|s| !s.is_empty()))?;
 
-        // Normalize and convert to lowercase
-        let arch_lower = arch.to_lowercase();
-        let normalized = match arch_lower.as_str() {
-            "x64" | "x86_64" => "amd64",
-            "aarch64" => "arm64",
-            other => other,
-        };
-
-        Some(normalized.to_string())
+        // Try to normalize to a canonical architecture name
+        // If not recognized, pass through as lowercase for custom values
+        Some(
+            arch.parse::<Arch>()
+                .map(|a| a.to_string())
+                .unwrap_or_else(|_| arch.to_lowercase()),
+        )
     }
 
     /// Resolves the `<USER>` placeholder for user-specific file names.
