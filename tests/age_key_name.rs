@@ -139,8 +139,15 @@ fn age_key_name_priority_order() {
     assert_eq!(plaintext, decrypted);
 
     // Should NOT be able to decrypt with manager2
-    assert!(loaded.decrypt_value(&manager2.encrypt_value(plaintext).unwrap()).is_err()
-        || loaded.decrypt_value(&manager2.encrypt_value(plaintext).unwrap()).unwrap() != plaintext);
+    assert!(
+        loaded
+            .decrypt_value(&manager2.encrypt_value(plaintext).unwrap())
+            .is_err()
+            || loaded
+                .decrypt_value(&manager2.encrypt_value(plaintext).unwrap())
+                .unwrap()
+                != plaintext
+    );
 }
 
 #[test]

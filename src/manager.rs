@@ -361,9 +361,10 @@ impl SecretManager {
         if key_path.exists() {
             return Self::load_from_file(&key_path);
         }
-        Err(SecretsError::KeyLoadFailed(
-            format!("no key found (DOTENVAGE_AGE_KEY, AGE_KEY, or key file at {})", key_path.display()),
-        ))
+        Err(SecretsError::KeyLoadFailed(format!(
+            "no key found (DOTENVAGE_AGE_KEY, AGE_KEY, or key file at {})",
+            key_path.display()
+        )))
     }
 
     fn load_from_file(path: &Path) -> SecretsResult<Self> {
@@ -431,15 +432,15 @@ impl SecretManager {
     }
 
     fn xdg_base_dir_for(name: &str) -> Option<PathBuf> {
-        if let Ok(p) = std::env::var("XDG_STATE_HOME") {
-            if !p.is_empty() {
-                return Some(PathBuf::from(p).join(name));
-            }
+        if let Ok(p) = std::env::var("XDG_STATE_HOME")
+            && !p.is_empty()
+        {
+            return Some(PathBuf::from(p).join(name));
         }
-        if let Ok(p) = std::env::var("XDG_CONFIG_HOME") {
-            if !p.is_empty() {
-                return Some(PathBuf::from(p).join(name));
-            }
+        if let Ok(p) = std::env::var("XDG_CONFIG_HOME")
+            && !p.is_empty()
+        {
+            return Some(PathBuf::from(p).join(name));
         }
         if let Ok(home) = std::env::var("HOME") {
             let home_path = PathBuf::from(home);
@@ -457,6 +458,7 @@ impl SecretManager {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
 
     #[test]
     fn test_encrypt_decrypt_roundtrip() {
@@ -481,6 +483,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_key_path_from_env_or_default_with_age_key_name() {
         // This test must clear ALL env vars that affect key path discovery
         let orig_age_key_name = std::env::var("AGE_KEY_NAME").ok();
@@ -495,7 +498,10 @@ mod tests {
         }
 
         let path = SecretManager::key_path_from_env_or_default();
-        assert_eq!(path, std::path::PathBuf::from("/tmp/xdg-state/myproject/myapp.key"));
+        assert_eq!(
+            path,
+            std::path::PathBuf::from("/tmp/xdg-state/myproject/myapp.key")
+        );
 
         // Restore env
         unsafe {
@@ -514,6 +520,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_key_path_from_env_or_default_without_age_key_name() {
         // Save original env
         let orig_age_key_name = std::env::var("AGE_KEY_NAME").ok();
@@ -547,9 +554,11 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_xdg_base_dir_for() {
         // Save original env
         let orig_xdg_state = std::env::var("XDG_STATE_HOME").ok();
+        let orig_xdg_config = std::env::var("XDG_CONFIG_HOME").ok();
         let orig_home = std::env::var("HOME").ok();
 
         // Test with XDG_STATE_HOME
@@ -562,10 +571,14 @@ mod tests {
         // Test with HOME fallback
         unsafe {
             std::env::remove_var("XDG_STATE_HOME");
+            std::env::remove_var("XDG_CONFIG_HOME");
             std::env::set_var("HOME", "/home/user");
         }
         let path = SecretManager::xdg_base_dir_for("test");
-        assert_eq!(path, Some(std::path::PathBuf::from("/home/user/.local/state/test")));
+        assert_eq!(
+            path,
+            Some(std::path::PathBuf::from("/home/user/.local/state/test"))
+        );
 
         // Restore env
         unsafe {
@@ -573,6 +586,11 @@ mod tests {
                 std::env::set_var("XDG_STATE_HOME", val);
             } else {
                 std::env::remove_var("XDG_STATE_HOME");
+            }
+            if let Some(val) = orig_xdg_config {
+                std::env::set_var("XDG_CONFIG_HOME", val);
+            } else {
+                std::env::remove_var("XDG_CONFIG_HOME");
             }
             if let Some(val) = orig_home {
                 std::env::set_var("HOME", val);
