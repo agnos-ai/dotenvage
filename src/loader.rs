@@ -1,19 +1,209 @@
 //! Environment loader with automatic secret decryption.
 //!
-//! This module provides [`EnvLoader`] for loading and decrypting environment files,
-//! and [`AutoDetectPatterns`] for automatically identifying sensitive variables.
+//! This module provides [`EnvLoader`] for loading and decrypting environment
+//! files, and [`AutoDetectPatterns`] for automatically identifying sensitive
+//! variables.
 
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
-use crate::error::{SecretsError, SecretsResult};
+use crate::error::{
+    SecretsError,
+    SecretsResult,
+};
 use crate::manager::SecretManager;
+
+/// Supported CPU architectures for file naming.
+///
+/// These are the canonical architecture names used in `.env.<ARCH>` file
+/// patterns. Input values are normalized to these canonical forms.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Arch {
+    /// AMD64/x86-64 architecture
+    ///
+    /// Matches: `amd64`, `x64`, `x86_64`
+    Amd64,
+
+    /// ARM64/AArch64 architecture
+    ///
+    /// Matches: `arm64`, `aarch64`
+    Arm64,
+
+    /// 32-bit ARM architecture
+    ///
+    /// Matches: `arm`, `armv7`, `armv7l`
+    Arm,
+
+    /// 32-bit x86 architecture
+    ///
+    /// Matches: `i386`, `i686`, `x86`
+    I386,
+
+    /// RISC-V 64-bit architecture
+    ///
+    /// Matches: `riscv64`, `riscv64gc`
+    Riscv64,
+
+    /// PowerPC 64-bit Little Endian
+    ///
+    /// Matches: `ppc64le`, `powerpc64le`
+    Ppc64le,
+
+    /// IBM System/390 (s390x)
+    ///
+    /// Matches: `s390x`
+    S390x,
+}
+
+impl Arch {
+    /// Returns the canonical file name suffix for this architecture.
+    ///
+    /// This is the value used in `.env.<ARCH>` file patterns.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Amd64 => "amd64",
+            Self::Arm64 => "arm64",
+            Self::Arm => "arm",
+            Self::I386 => "i386",
+            Self::Riscv64 => "riscv64",
+            Self::Ppc64le => "ppc64le",
+            Self::S390x => "s390x",
+        }
+    }
+}
+
+impl std::fmt::Display for Arch {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
+impl std::str::FromStr for Arch {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let s_lower = s.to_lowercase();
+        match s_lower.as_str() {
+            // AMD64 / x86-64 - NO DOTS ALLOWED
+            "amd64" | "x64" | "x86_64" => Ok(Self::Amd64),
+            // ARM64 / AArch64
+            "arm64" | "aarch64" => Ok(Self::Arm64),
+            // 32-bit ARM
+            "arm" | "armv7" | "armv7l" | "armhf" => Ok(Self::Arm),
+            // 32-bit x86
+            "i386" | "i686" | "x86" => Ok(Self::I386),
+            // RISC-V 64
+            "riscv64" | "riscv64gc" => Ok(Self::Riscv64),
+            // PowerPC 64 LE
+            "ppc64le" | "powerpc64le" => Ok(Self::Ppc64le),
+            // s390x
+            "s390x" => Ok(Self::S390x),
+            _ => Err(()),
+        }
+    }
+}
+
+/// Supported operating systems for file naming.
+///
+/// These are the canonical OS names used in `.env.<OS>` file patterns.
+/// Input values are normalized to these canonical forms.
+///
+/// **Important**: Canonical values must NOT contain dots to maintain
+/// unambiguous parsing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Os {
+    /// Linux
+    ///
+    /// Matches: `linux`
+    Linux,
+
+    /// macOS / Darwin
+    ///
+    /// Matches: `macos`, `darwin`, `osx`
+    Macos,
+
+    /// Windows
+    ///
+    /// Matches: `windows`, `win32`, `win`
+    Windows,
+
+    /// FreeBSD
+    ///
+    /// Matches: `freebsd`
+    Freebsd,
+
+    /// OpenBSD
+    ///
+    /// Matches: `openbsd`
+    Openbsd,
+
+    /// NetBSD
+    ///
+    /// Matches: `netbsd`
+    Netbsd,
+
+    /// Android
+    ///
+    /// Matches: `android`
+    Android,
+
+    /// iOS
+    ///
+    /// Matches: `ios`
+    Ios,
+}
+
+impl Os {
+    /// Returns the canonical file name suffix for this OS.
+    ///
+    /// This is the value used in `.env.<OS>` file patterns.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Linux => "linux",
+            Self::Macos => "macos",
+            Self::Windows => "windows",
+            Self::Freebsd => "freebsd",
+            Self::Openbsd => "openbsd",
+            Self::Netbsd => "netbsd",
+            Self::Android => "android",
+            Self::Ios => "ios",
+        }
+    }
+}
+
+impl std::fmt::Display for Os {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
+impl std::str::FromStr for Os {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let s_lower = s.to_lowercase();
+        match s_lower.as_str() {
+            "linux" => Ok(Self::Linux),
+            "macos" | "darwin" | "osx" => Ok(Self::Macos),
+            "windows" | "win32" | "win" => Ok(Self::Windows),
+            "freebsd" => Ok(Self::Freebsd),
+            "openbsd" => Ok(Self::Openbsd),
+            "netbsd" => Ok(Self::Netbsd),
+            "android" => Ok(Self::Android),
+            "ios" => Ok(Self::Ios),
+            _ => Err(()),
+        }
+    }
+}
 
 /// Loads environment files with automatic decryption of encrypted values.
 ///
-/// `EnvLoader` reads `.env` files in a specific order and automatically decrypts
-/// any encrypted values it encounters. It supports multiple environment variants
-/// and user-specific configuration files.
+/// `EnvLoader` reads `.env` files in a specific order and automatically
+/// decrypts any encrypted values it encounters. It supports multiple
+/// environment variants and user-specific configuration files.
 ///
 /// # Examples
 ///
@@ -37,19 +227,24 @@ use crate::manager::SecretManager;
 /// 1. `.env` - Base configuration
 /// 2. `.env.<ENV>` - Environment-specific
 /// 3. `.env.<ENV>-<ARCH>` - Architecture-specific (if `<ARCH>` is set)
-/// 4. `.env.<ENV>.<USER>` or `.env.<ENV>-<ARCH>.<USER>` - User-specific overrides
-/// 5. `.env.pr-<PR_NUMBER>` - PR-specific (GitHub Actions only)
+/// 4. `.env.<USER>` - User-specific overrides (if `<USER>` is set)
+/// 5. `.env.<ENV>.<USER>` - User overrides for specific environment
+/// 6. `.env.<ENV>-<ARCH>.<USER>` - User overrides for env+arch combo
+/// 7. `.env.pr-<PR_NUMBER>` - PR-specific (GitHub Actions only)
 ///
-/// **Note**: Separators can be either `.` or `-` (e.g., `.env.local` or `.env-local`)
+/// **Note**: Separators can be either `.` or `-` (e.g., `.env.local` or
+/// `.env-local`)
 ///
 /// # Placeholders
 ///
 /// The following placeholders are resolved from environment variables:
 ///
 /// - **`<ENV>`**: Environment name (see [`resolve_env()`](Self::resolve_env))
-/// - **`<ARCH>`**: Architecture name (see [`resolve_arch()`](Self::resolve_arch))
+/// - **`<ARCH>`**: Architecture name (see
+///   [`resolve_arch()`](Self::resolve_arch))
 /// - **`<USER>`**: Username (see [`resolve_user()`](Self::resolve_user))
-/// - **`<PR_NUMBER>`**: Pull request number (see [`resolve_pr_number()`](Self::resolve_pr_number))
+/// - **`<PR_NUMBER>`**: Pull request number (see
+///   [`resolve_pr_number()`](Self::resolve_pr_number))
 pub struct EnvLoader {
     manager: SecretManager,
 }
@@ -68,31 +263,6 @@ impl EnvLoader {
         None
     }
 
-    fn gen_names(parts: &[&str]) -> Vec<String> {
-        let n = parts.len();
-        let mut names = Vec::new();
-        for mask in 0..(1u32 << n) {
-            let mut name = String::from(".env");
-            for (i, part) in parts.iter().enumerate() {
-                let sep = if (mask >> i) & 1 == 1 { '-' } else { '.' };
-                name.push(sep);
-                name.push_str(part);
-            }
-            names.push(name);
-        }
-        names
-    }
-
-    fn add_names_if_exist(dir: &Path, paths: &mut Vec<PathBuf>, parts: &[&str]) {
-        for name in Self::gen_names(parts) {
-            if let Some(p) = Self::find_file_case_insensitive(dir, &name)
-                && !paths.iter().any(|x| x == &p)
-            {
-                paths.push(p);
-            }
-        }
-    }
-
     fn add_exact_if_exist(dir: &Path, paths: &mut Vec<PathBuf>, filename: &str) {
         if let Some(p) = Self::find_file_case_insensitive(dir, filename)
             && !paths.iter().any(|x| x == &p)
@@ -104,9 +274,12 @@ impl EnvLoader {
     /// Creates a new `EnvLoader` with a default `SecretManager`.
     ///
     /// This will load the encryption key from standard locations:
-    /// 1. `DOTENVAGE_AGE_KEY` environment variable
+    /// 0. **Auto-discover** `AGE_KEY_NAME` from `.env` or `.env.local` files
+    /// 1. `DOTENVAGE_AGE_KEY` environment variable (full identity string)
     /// 2. `AGE_KEY` environment variable
-    /// 3. Default key file at XDG path (e.g., `~/.local/state/dotenvage/dotenvage.key`)
+    /// 3. Key file at path determined by discovered `AGE_KEY_NAME`
+    /// 4. Default key file at XDG path (e.g.,
+    ///    `~/.local/state/dotenvage/dotenvage.key`)
     ///
     /// # Errors
     ///
@@ -124,7 +297,10 @@ impl EnvLoader {
     /// # Examples
     ///
     /// ```rust,no_run
-    /// use dotenvage::{SecretManager, EnvLoader};
+    /// use dotenvage::{
+    ///     EnvLoader,
+    ///     SecretManager,
+    /// };
     ///
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// let manager = SecretManager::generate()?;
@@ -162,7 +338,8 @@ impl EnvLoader {
         self.load_from_dir(".")
     }
 
-    /// Loads `.env` files from a specific directory using the same order as [`load`](Self::load).
+    /// Loads `.env` files from a specific directory using the same order as
+    /// [`load`](Self::load).
     ///
     /// # Errors
     ///
@@ -189,38 +366,90 @@ impl EnvLoader {
 
     /// Computes the ordered list of env file paths to load.
     ///
-    /// This method determines which `.env` files exist and should be loaded,
-    /// in the correct precedence order.
+    /// This method uses a **power-set generation** approach: it resolves ENV,
+    /// OS, ARCH, and USER from the environment, then generates all possible
+    /// combinations of these values (maintaining canonical order: ENV, OS,
+    /// ARCH, USER).
+    ///
+    /// Files are loaded in specificity order - more parts means more specific,
+    /// which means higher precedence.
     ///
     /// # Returns
     ///
     /// A vector of paths in load order (later paths override earlier ones).
+    ///
+    /// # Examples
+    ///
+    /// With `ENV=local`, `OS=linux`, `ARCH=amd64`, `USER=alice`, this
+    /// generates:
+    /// - `.env`
+    /// - `.env.local`
+    /// - `.env.linux`
+    /// - `.env.amd64`
+    /// - `.env.alice`
+    /// - `.env.local.linux`
+    /// - `.env.local.amd64`
+    /// - `.env.local.alice`
+    /// - `.env.linux.amd64`
+    /// - `.env.linux.alice`
+    /// - `.env.amd64.alice`
+    /// - `.env.local.linux.amd64`
+    /// - `.env.local.linux.alice`
+    /// - `.env.local.amd64.alice`
+    /// - `.env.linux.amd64.alice`
+    /// - `.env.local.linux.amd64.alice`
+    /// - `.env.pr-<NUMBER>` (if applicable)
     pub fn resolve_env_paths(&self, dir: &Path) -> Vec<PathBuf> {
         let mut paths: Vec<PathBuf> = Vec::new();
 
-        // 1) Always read .env
+        // Always start with base .env
         Self::add_exact_if_exist(dir, &mut paths, ".env");
 
-        // 2) Resolve ENV and load environment-specific files
+        // Resolve all dimensions
         let env = Self::resolve_env();
-        Self::add_names_if_exist(dir, &mut paths, &[&env]);
-
-        // 3) Arch-specific: .env.<ENV>-<ARCH>
+        let os = Self::resolve_os();
         let arch = Self::resolve_arch();
-        if let Some(ref a) = arch {
-            Self::add_names_if_exist(dir, &mut paths, &[&env, a]);
-        }
-
-        // 4) User-specific layers
         let user = Self::resolve_user();
-        if let Some(ref u) = user {
-            Self::add_names_if_exist(dir, &mut paths, &[&env, u]);
-            if let Some(ref a) = arch {
-                Self::add_names_if_exist(dir, &mut paths, &[&env, a, u]);
+
+        // Generate power set: all combinations of [env, os, arch, user]
+        // We use a bitmask approach: 4 bits for 4 optional values
+        // Bit 0 = ENV, Bit 1 = OS, Bit 2 = ARCH, Bit 3 = USER
+        for mask in 1..16 {
+            // mask from 1 to 15 (excluding 0 which is just .env)
+            let mut parts = Vec::new();
+
+            // Maintain canonical order: ENV, OS, ARCH, USER
+            if mask & 1 != 0 {
+                parts.push(env.as_str());
             }
+            if mask & 2 != 0 {
+                if let Some(ref o) = os {
+                    parts.push(o.as_str());
+                } else {
+                    continue; // Skip this combination if OS not available
+                }
+            }
+            if mask & 4 != 0 {
+                if let Some(ref a) = arch {
+                    parts.push(a.as_str());
+                } else {
+                    continue; // Skip this combination if ARCH not available
+                }
+            }
+            if mask & 8 != 0 {
+                if let Some(ref u) = user {
+                    parts.push(u.as_str());
+                } else {
+                    continue; // Skip this combination if USER not available
+                }
+            }
+
+            // Build filename with dots as separators
+            let filename = format!(".env.{}", parts.join("."));
+            Self::add_exact_if_exist(dir, &mut paths, &filename);
         }
 
-        // 5) PR-specific only on GitHub Actions PRs
+        // PR-specific always comes last (highest precedence)
         if let Some(pr_number) = Self::resolve_pr_number() {
             Self::add_exact_if_exist(dir, &mut paths, &format!(".env.pr-{}", pr_number));
         }
@@ -278,7 +507,8 @@ impl EnvLoader {
         Ok(vars)
     }
 
-    /// Gets a decrypted environment variable value from the process environment.
+    /// Gets a decrypted environment variable value from the process
+    /// environment.
     ///
     /// If the value is encrypted, it will be automatically decrypted.
     ///
@@ -348,14 +578,33 @@ impl EnvLoader {
     ///
     /// 1. `DOTENVAGE_ARCH` environment variable (preferred)
     /// 2. `EKG_ARCH` environment variable (alternative)
-    /// 3. `TARGETARCH` environment variable (Docker multi-platform builds, e.g., "amd64", "arm64")
-    /// 4. `TARGETPLATFORM` environment variable (Docker, parsed for arch, e.g., "linux/arm64" → "arm64")
-    /// 5. `RUNNER_ARCH` environment variable (GitHub Actions, e.g., "X64", "ARM64")
-    /// 6. Returns `None` if none are set
+    /// 3. `CARGO_CFG_TARGET_ARCH` environment variable (Cargo build-time, e.g.,
+    ///    "x86_64", "aarch64")
+    /// 4. `TARGET` environment variable (parsed for arch from target triple,
+    ///    e.g., "x86_64-unknown-linux-gnu" → "x86_64")
+    /// 5. `TARGETARCH` environment variable (Docker multi-platform builds,
+    ///    e.g., "amd64", "arm64")
+    /// 6. `TARGETPLATFORM` environment variable (Docker, parsed for arch, e.g.,
+    ///    "linux/arm64" → "arm64")
+    /// 7. `RUNNER_ARCH` environment variable (GitHub Actions, e.g., "X64",
+    ///    "ARM64")
+    /// 8. Returns `None` if none are set
     ///
-    /// The value is always converted to lowercase and normalized:
-    /// - `"x64"`, `"amd64"`, `"x86_64"` → `"amd64"`
-    /// - `"aarch64"` → `"arm64"`
+    /// # Supported Architectures
+    ///
+    /// The following architectures are recognized and normalized to canonical
+    /// names:
+    ///
+    /// - **`amd64`**: AMD64/x86-64 (aliases: `x64`, `x86_64`, `x86-64`)
+    /// - **`arm64`**: ARM 64-bit (aliases: `aarch64`)
+    /// - **`arm`**: ARM 32-bit (aliases: `armv7`, `armv7l`, `armhf`)
+    /// - **`i386`**: x86 32-bit (aliases: `i686`, `x86`)
+    /// - **`riscv64`**: RISC-V 64-bit (aliases: `riscv64gc`)
+    /// - **`ppc64le`**: PowerPC 64-bit LE (aliases: `powerpc64le`)
+    /// - **`s390x`**: IBM System/390
+    ///
+    /// Unknown values are passed through as-is (lowercase) for custom use
+    /// cases.
     ///
     /// # Examples
     ///
@@ -373,6 +622,18 @@ impl EnvLoader {
             .ok()
             .filter(|s| !s.is_empty())
             .or_else(|| std::env::var("EKG_ARCH").ok().filter(|s| !s.is_empty()))
+            .or_else(|| {
+                std::env::var("CARGO_CFG_TARGET_ARCH")
+                    .ok()
+                    .filter(|s| !s.is_empty())
+            })
+            .or_else(|| {
+                // Parse TARGET triple (e.g., "x86_64-unknown-linux-gnu" → "x86_64")
+                std::env::var("TARGET")
+                    .ok()
+                    .filter(|s| !s.is_empty())
+                    .and_then(|t| t.split('-').next().map(String::from))
+            })
             .or_else(|| std::env::var("TARGETARCH").ok().filter(|s| !s.is_empty()))
             .or_else(|| {
                 // Parse TARGETPLATFORM (e.g., "linux/arm64" → "arm64")
@@ -383,15 +644,76 @@ impl EnvLoader {
             })
             .or_else(|| std::env::var("RUNNER_ARCH").ok().filter(|s| !s.is_empty()))?;
 
-        // Normalize and convert to lowercase
-        let arch_lower = arch.to_lowercase();
-        let normalized = match arch_lower.as_str() {
-            "x64" | "x86_64" => "amd64",
-            "aarch64" => "arm64",
-            other => other,
-        };
+        // Try to normalize to a canonical architecture name
+        // If not recognized, pass through as lowercase for custom values
+        Some(
+            arch.parse::<Arch>()
+                .map(|a| a.to_string())
+                .unwrap_or_else(|_| arch.to_lowercase()),
+        )
+    }
 
-        Some(normalized.to_string())
+    /// Resolves the `<OS>` placeholder for OS-specific file names.
+    ///
+    /// The operating system is resolved from the first available source:
+    ///
+    /// 1. `DOTENVAGE_OS` environment variable (preferred)
+    /// 2. `EKG_OS` environment variable (alternative)
+    /// 3. `CARGO_CFG_TARGET_OS` environment variable (Cargo build-time, e.g.,
+    ///    "linux", "macos", "windows")
+    /// 4. `TARGET` environment variable (parsed from target triple, e.g.,
+    ///    "x86_64-unknown-linux-gnu" → "linux")
+    /// 5. `RUNNER_OS` environment variable (GitHub Actions, e.g., "Linux",
+    ///    "macOS", "Windows")
+    /// 6. `std::env::consts::OS` (runtime detection)
+    ///
+    /// # Supported Operating Systems
+    ///
+    /// - **`linux`**: Linux
+    /// - **`macos`**: macOS (aliases: `darwin`, `osx`)
+    /// - **`windows`**: Windows (aliases: `win32`, `win`)
+    /// - **`freebsd`**: FreeBSD
+    /// - **`openbsd`**: OpenBSD
+    /// - **`netbsd`**: NetBSD
+    /// - **`android`**: Android
+    /// - **`ios`**: iOS
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use dotenvage::EnvLoader;
+    ///
+    /// // Typically auto-detects from runtime or build-time
+    /// if let Some(os) = EnvLoader::resolve_os() {
+    ///     println!("OS: {}", os);
+    /// }
+    /// ```
+    pub fn resolve_os() -> Option<String> {
+        let os = std::env::var("DOTENVAGE_OS")
+            .ok()
+            .filter(|s| !s.is_empty())
+            .or_else(|| std::env::var("EKG_OS").ok().filter(|s| !s.is_empty()))
+            .or_else(|| {
+                std::env::var("CARGO_CFG_TARGET_OS")
+                    .ok()
+                    .filter(|s| !s.is_empty())
+            })
+            .or_else(|| {
+                // Parse TARGET triple (e.g., "x86_64-unknown-linux-gnu" → "linux")
+                std::env::var("TARGET")
+                    .ok()
+                    .filter(|s| !s.is_empty())
+                    .and_then(|t| t.split('-').nth(2).map(String::from))
+            })
+            .or_else(|| std::env::var("RUNNER_OS").ok().filter(|s| !s.is_empty()))
+            .or_else(|| Some(std::env::consts::OS.to_string()))?;
+
+        // Try to normalize to a canonical OS name
+        Some(
+            os.parse::<Os>()
+                .map(|o| o.to_string())
+                .unwrap_or_else(|_| os.to_lowercase()),
+        )
     }
 
     /// Resolves the `<USER>` placeholder for user-specific file names.
@@ -473,16 +795,16 @@ impl EnvLoader {
         if let Ok(gref) = std::env::var("GITHUB_REF")
             && let Some(idx) = gref.find("/pull/")
         {
-            let mut n = String::new();
+            let mut pr_number = String::new();
             for c in gref[idx + 6..].chars() {
                 if c.is_ascii_digit() {
-                    n.push(c);
+                    pr_number.push(c);
                 } else {
                     break;
                 }
             }
-            if !n.is_empty() {
-                return Some(n);
+            if !pr_number.is_empty() {
+                return Some(pr_number);
             }
         }
 
@@ -493,8 +815,8 @@ impl EnvLoader {
 /// Auto-detection patterns for identifying sensitive environment variables.
 ///
 /// This utility helps determine which environment variables should be encrypted
-/// based on their names. It uses common patterns to identify secrets like tokens,
-/// passwords, and API keys.
+/// based on their names. It uses common patterns to identify secrets like
+/// tokens, passwords, and API keys.
 ///
 /// # Examples
 ///
@@ -512,7 +834,8 @@ impl AutoDetectPatterns {
     /// Patterns indicating a variable should be encrypted.
     ///
     /// Variables containing any of these substrings (case-insensitive) will be
-    /// automatically encrypted unless they match a pattern in [`NEVER_ENCRYPT`](Self::NEVER_ENCRYPT).
+    /// automatically encrypted unless they match a pattern in
+    /// [`NEVER_ENCRYPT`](Self::NEVER_ENCRYPT).
     pub const ENCRYPT_PATTERNS: &'static [&'static str] = &[
         "TOKEN",
         "SECRET",
@@ -542,7 +865,8 @@ impl AutoDetectPatterns {
 
     /// Returns `true` if an environment variable name should be encrypted.
     ///
-    /// This checks the variable name against [`ENCRYPT_PATTERNS`](Self::ENCRYPT_PATTERNS)
+    /// This checks the variable name against
+    /// [`ENCRYPT_PATTERNS`](Self::ENCRYPT_PATTERNS)
     /// and [`NEVER_ENCRYPT`](Self::NEVER_ENCRYPT) lists.
     ///
     /// # Examples

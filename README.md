@@ -6,13 +6,17 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Downloads](https://img.shields.io/crates/d/dotenvage.svg)](https://crates.io/crates/dotenvage)
 
-Dotenv with age encryption: encrypt/decrypt secrets in
-`.env` files.
+Dotenv with age encryption: encrypt/decrypt secrets in `.env` files.
+
+**The key advantage**: With encrypted secrets, you can safely **commit all your `.env*`
+files to version control** - including production configs, user-specific settings, and
+files with sensitive data. No more `.gitignore` juggling or secret management headaches.
 
 - Selective encryption of sensitive keys
 - Uses age (X25519) for modern encryption
 - Library + CLI
 - CI-friendly (supports key via env var)
+- Automatic file layering with precedence rules
 
 ## Install
 
@@ -41,7 +45,10 @@ dotenvage get FLY_API_TOKEN
 # List keys (show lock icon; verbose shows decrypted values)
 dotenvage list --file .env.local --verbose
 
-# Dump decrypted .env to stdout (KEY=VALUE lines)
+# Dump all decrypted env vars (merges all .env* files with layering)
+dotenvage dump
+
+# Dump a specific file
 dotenvage dump .env.local
 ```
 
@@ -59,12 +66,157 @@ let enc = manager.encrypt_value("secret")?;
 let dec = manager.decrypt_value(&enc)?;
 ```
 
+## File Layering
+
+One of dotenvage's key features is **automatic file layering** - multiple `.env*`
+files are loaded and merged with a clear precedence order.
+Later files override values from earlier files.
+
+### Loading Order
+
+Files are loaded using a **flexible power-set algorithm** that generates all possible combinations 
+of ENV, OS, ARCH, and USER. This allows any combination you need without being constrained by a 
+fixed hierarchy.
+
+**Key principle**: All multi-part file names use **dots as separators only** (not dashes), 
+ensuring unambiguous parsing.
+
+Files are loaded in **specificity order** (later overrides earlier):
+
+1. **`.env`** - Base configuration (always first)
+2. **Single-part patterns**: `.env.<ENV>`, `.env.<OS>`, `.env.<ARCH>`, `.env.<USER>`
+3. **Two-part combinations**: `.env.<ENV>.<OS>`, `.env.<ENV>.<ARCH>`, `.env.<ENV>.<USER>`, etc.
+4. **Three-part combinations**: `.env.<ENV>.<OS>.<ARCH>`, `.env.<ENV>.<OS>.<USER>`, etc.
+5. **Four-part combination**: `.env.<ENV>.<OS>.<ARCH>.<USER>` (most specific)
+6. **`.env.pr-<NUMBER>`** - PR-specific (GitHub Actions only, always last)
+
+**All files can be safely committed to git** since secrets are encrypted.
+
+#### Example Combinations
+
+With `ENV=prod`, `OS=linux`, `ARCH=amd64`, `USER=alice`, these files would be loaded (in order):
+
+- `.env`
+- `.env.prod`
+- `.env.linux`
+- `.env.amd64`
+- `.env.alice`
+- `.env.prod.linux`
+- `.env.prod.amd64`
+- `.env.prod.alice`
+- `.env.linux.amd64`
+- `.env.linux.alice`
+- `.env.amd64.alice`
+- `.env.prod.linux.amd64`
+- `.env.prod.linux.alice`
+- `.env.prod.amd64.alice`
+- `.env.linux.amd64.alice`
+- `.env.prod.linux.amd64.alice`
+
+You only need to create the files you use - the loader checks which exist.
+
+### Placeholders
+
+- **`<ENV>`**: From `DOTENVAGE_ENV`, `EKG_ENV`, `VERCEL_ENV`, `NODE_ENV`, or defaults to `local`
+- **`<OS>`**: From `DOTENVAGE_OS`, `EKG_OS`, `CARGO_CFG_TARGET_OS`, `TARGET`, `RUNNER_OS`, or runtime detection
+- **`<ARCH>`**: From `DOTENVAGE_ARCH`, `EKG_ARCH`, `CARGO_CFG_TARGET_ARCH`, `TARGET`, `TARGETARCH`, `TARGETPLATFORM`, or `RUNNER_ARCH`
+- **`<USER>`**: From `DOTENVAGE_USER`, `EKG_USER`, or system username
+- **`<PR_NUMBER>`**: Auto-detected from GitHub Actions `GITHUB_REF`
+
+### Supported Operating Systems
+
+The `<OS>` placeholder supports these canonical values (with normalization):
+
+| Canonical | File Example | Aliases (normalized to canonical) |
+|-----------|--------------|-----------------------------------|
+| `linux` | `.env.prod.linux` | - |
+| `macos` | `.env.prod.macos` | `darwin`, `osx` |
+| `windows` | `.env.prod.windows` | `win32`, `win` |
+| `freebsd` | `.env.prod.freebsd` | - |
+| `openbsd` | `.env.prod.openbsd` | - |
+| `netbsd` | `.env.prod.netbsd` | - |
+| `android` | `.env.prod.android` | - |
+| `ios` | `.env.prod.ios` | - |
+
+### Supported Architectures
+
+The `<ARCH>` placeholder supports these canonical values (with normalization):
+
+| Canonical | File Example | Aliases (normalized to canonical) |
+|-----------|--------------|-----------------------------------|
+| `amd64` | `.env.prod.amd64` | `x64`, `x86_64` |
+| `arm64` | `.env.prod.arm64` | `aarch64` |
+| `arm` | `.env.prod.arm` | `armv7`, `armv7l`, `armhf` |
+| `i386` | `.env.prod.i386` | `i686`, `x86` |
+| `riscv64` | `.env.prod.riscv64` | `riscv64gc` |
+| `ppc64le` | `.env.prod.ppc64le` | `powerpc64le` |
+| `s390x` | `.env.prod.s390x` | - |
+
+**Note**: Custom architecture values (e.g., `docker-s3`) are passed through as lowercase and can 
+include dashes within the value itself (e.g., `.env.prod.docker-s3`), but dots remain the separator 
+between file name parts.
+
+### Example
+
+Given these files:
+
+```bash
+# .env - Base config (safe to commit)
+DATABASE_URL=postgres://localhost/dev
+API_KEY=public_key
+
+# .env.local - Local overrides (safe to commit with encryption)
+DATABASE_URL=postgres://localhost/mydb
+SECRET_TOKEN=age[...]  # encrypted, safe to commit!
+```
+
+Running `dotenvage dump` produces:
+```bash
+DATABASE_URL=postgres://localhost/mydb  # from .env.local
+API_KEY=public_key                       # from .env
+SECRET_TOKEN=decrypted_value             # decrypted from .env.local
+```
+
+This layering system allows you to:
+- **Commit ALL `.env*` files to version control** - secrets are encrypted
+- Share environment-specific configs across the team (`.env.production`, `.env.staging`)
+- Provide user-specific overrides (`.env.local.alice`) without conflicts
+- Configure architecture-specific settings (`.env.local-arm64`)
+
 ## Key Management
 
-- Reads identity from `DOTENVAGE_AGE_KEY` (preferred),
-  `AGE_KEY`, or `EKG_AGE_KEY` env vars
-- Otherwise uses XDG path (e.g.,
-  `~/.local/state/dotenvage/dotenvage.key`)
+Keys are discovered in this priority order:
+
+1. **`DOTENVAGE_AGE_KEY`** env var (full identity string)
+2. **`AGE_KEY`** env var (full identity string)  
+3. **`AGE_KEY_NAME`** from .env ? key file at `$XDG_STATE_HOME/{AGE_KEY_NAME}.key`
+4. **Default**: `~/.local/state/{CARGO_PKG_NAME}/dotenvage.key`
+
+### Project-Specific Keys
+
+For multi-project setups, configure in `.env`:
+
+```bash
+# .env (committed, not secret)
+AGE_KEY_NAME=myproject/myapp
+```
+
+Key stored at: `~/.local/state/myproject/myapp.key`
+
+### XDG Base Directories
+
+- Prefers `$XDG_STATE_HOME` 
+- Falls back to `~/.local/state`
+- Or `$XDG_CONFIG_HOME` / `~/.config` (legacy)
+
+### CI/CD
+
+Set `DOTENVAGE_AGE_KEY` or `AGE_KEY` in CI secrets:
+
+```yaml
+env:
+  DOTENVAGE_AGE_KEY: ${{ secrets.AGE_KEY }}
+```
 
 ## License
 

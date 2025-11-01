@@ -5,7 +5,8 @@ use thiserror::Error;
 /// A specialized `Result` type for dotenvage operations.
 pub type SecretsResult<T> = Result<T, SecretsError>;
 
-/// Errors that can occur when working with encrypted secrets and environment files.
+/// Errors that can occur when working with encrypted secrets and environment
+/// files.
 #[derive(Debug, Error)]
 pub enum SecretsError {
     /// Failed to load encryption key from file or environment variable.
