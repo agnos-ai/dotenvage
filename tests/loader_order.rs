@@ -92,10 +92,10 @@ fn order_env_arch() {
     let tmp = tempfile::tempdir().unwrap();
     std::fs::write(tmp.path().join(".env"), "").unwrap();
     std::fs::write(tmp.path().join(".env.prod"), "").unwrap();
-    std::fs::write(tmp.path().join(".env.prod-docker-s3"), "").unwrap();
+    std::fs::write(tmp.path().join(".env.prod.docker-s3"), "").unwrap();
     let loader = dotenvage::EnvLoader::with_manager(dotenvage::SecretManager::generate().unwrap());
     let got = names(loader.resolve_env_paths(tmp.path()));
-    assert_eq!(got, vec![".env", ".env.prod", ".env.prod-docker-s3"]);
+    assert_eq!(got, vec![".env", ".env.prod", ".env.prod.docker-s3"]);
 }
 
 #[test]
@@ -126,8 +126,10 @@ fn order_user_and_arch() {
     let tmp = tempfile::tempdir().unwrap();
     std::fs::write(tmp.path().join(".env"), "").unwrap();
     std::fs::write(tmp.path().join(".env.prod"), "").unwrap();
-    std::fs::write(tmp.path().join(".env.prod-alice"), "").unwrap();
-    std::fs::write(tmp.path().join(".env.prod-docker-s3-alice"), "").unwrap();
+    std::fs::write(tmp.path().join(".env.prod.docker-s3"), "").unwrap();
+    std::fs::write(tmp.path().join(".env.alice"), "").unwrap();
+    std::fs::write(tmp.path().join(".env.prod.alice"), "").unwrap();
+    std::fs::write(tmp.path().join(".env.prod.docker-s3.alice"), "").unwrap();
     let loader = dotenvage::EnvLoader::with_manager(dotenvage::SecretManager::generate().unwrap());
     let got = names(loader.resolve_env_paths(tmp.path()));
     assert_eq!(
@@ -135,10 +137,104 @@ fn order_user_and_arch() {
         vec![
             ".env",
             ".env.prod",
-            ".env.prod-alice",
-            ".env.prod-docker-s3-alice"
+            ".env.prod.docker-s3",
+            ".env.alice",
+            ".env.prod.alice",
+            ".env.prod.docker-s3.alice"
         ]
     );
+}
+
+#[test]
+#[serial]
+fn order_user_without_env() {
+    clear_env(&[
+        "DOTENVAGE_ENV",
+        "EKG_ENV",
+        "DOTENVAGE_ARCH",
+        "EKG_ARCH",
+        "DOTENVAGE_USER",
+        "EKG_USER",
+        "GITHUB_EVENT_NAME",
+        "GITHUB_REF",
+        "PR_NUMBER",
+        "USER",
+        "USERNAME",
+    ]);
+    unsafe {
+        env::set_var("DOTENVAGE_USER", "bob");
+    }
+    let tmp = tempfile::tempdir().unwrap();
+    std::fs::write(tmp.path().join(".env"), "").unwrap();
+    std::fs::write(tmp.path().join(".env.local"), "").unwrap();
+    std::fs::write(tmp.path().join(".env.bob"), "").unwrap();
+    std::fs::write(tmp.path().join(".env.local.bob"), "").unwrap();
+    let loader = dotenvage::EnvLoader::with_manager(dotenvage::SecretManager::generate().unwrap());
+    let got = names(loader.resolve_env_paths(tmp.path()));
+    assert_eq!(
+        got,
+        vec![".env", ".env.local", ".env.bob", ".env.local.bob"]
+    );
+}
+
+#[test]
+#[serial]
+fn order_cargo_target_arch() {
+    clear_env(&[
+        "DOTENVAGE_ENV",
+        "EKG_ENV",
+        "DOTENVAGE_ARCH",
+        "EKG_ARCH",
+        "CARGO_CFG_TARGET_ARCH",
+        "TARGET",
+        "DOTENVAGE_USER",
+        "EKG_USER",
+        "GITHUB_EVENT_NAME",
+        "GITHUB_REF",
+        "PR_NUMBER",
+        "USER",
+        "USERNAME",
+    ]);
+    unsafe {
+        env::set_var("CARGO_CFG_TARGET_ARCH", "aarch64");
+    }
+    let tmp = tempfile::tempdir().unwrap();
+    std::fs::write(tmp.path().join(".env"), "").unwrap();
+    std::fs::write(tmp.path().join(".env.local"), "").unwrap();
+    std::fs::write(tmp.path().join(".env.local.arm64"), "").unwrap();
+    let loader = dotenvage::EnvLoader::with_manager(dotenvage::SecretManager::generate().unwrap());
+    let got = names(loader.resolve_env_paths(tmp.path()));
+    assert_eq!(got, vec![".env", ".env.local", ".env.local.arm64"]);
+}
+
+#[test]
+#[serial]
+fn order_target_triple() {
+    clear_env(&[
+        "DOTENVAGE_ENV",
+        "EKG_ENV",
+        "DOTENVAGE_ARCH",
+        "EKG_ARCH",
+        "CARGO_CFG_TARGET_ARCH",
+        "TARGET",
+        "DOTENVAGE_USER",
+        "EKG_USER",
+        "GITHUB_EVENT_NAME",
+        "GITHUB_REF",
+        "PR_NUMBER",
+        "USER",
+        "USERNAME",
+    ]);
+    unsafe {
+        env::set_var("TARGET", "x86_64-unknown-linux-gnu");
+    }
+    let tmp = tempfile::tempdir().unwrap();
+    std::fs::write(tmp.path().join(".env"), "").unwrap();
+    std::fs::write(tmp.path().join(".env.local"), "").unwrap();
+    std::fs::write(tmp.path().join(".env.local.amd64"), "").unwrap();
+    let loader = dotenvage::EnvLoader::with_manager(dotenvage::SecretManager::generate().unwrap());
+    let got = names(loader.resolve_env_paths(tmp.path()));
+    assert_eq!(got, vec![".env", ".env.local", ".env.local.amd64"]);
 }
 
 #[test]
@@ -226,8 +322,8 @@ fn case_insensitive_and_separators() {
     let tmp = tempfile::tempdir().unwrap();
     std::fs::write(tmp.path().join(".ENV"), "").unwrap();
     std::fs::write(tmp.path().join(".ENV.PROD"), "").unwrap();
-    std::fs::write(tmp.path().join(".ENV.PROD-DOCKER-S3-ALICE"), "").unwrap();
+    std::fs::write(tmp.path().join(".ENV.PROD.DOCKER-S3.ALICE"), "").unwrap();
     let loader = dotenvage::EnvLoader::with_manager(dotenvage::SecretManager::generate().unwrap());
     let got = names(loader.resolve_env_paths(tmp.path()));
-    assert_eq!(got, vec![".ENV", ".ENV.PROD", ".ENV.PROD-DOCKER-S3-ALICE"]);
+    assert_eq!(got, vec![".ENV", ".ENV.PROD", ".ENV.PROD.DOCKER-S3.ALICE"]);
 }
