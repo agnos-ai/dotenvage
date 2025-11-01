@@ -6,13 +6,15 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Downloads](https://img.shields.io/crates/d/dotenvage.svg)](https://crates.io/crates/dotenvage)
 
-Dotenv with age encryption: encrypt/decrypt secrets in
-`.env` files.
+Dotenv with age encryption: encrypt/decrypt secrets in `.env` files.
+
+**The key advantage**: With encrypted secrets, you can safely **commit all your `.env*` files to version control** - including production configs, user-specific settings, and files with sensitive data. No more `.gitignore` juggling or secret management headaches.
 
 - Selective encryption of sensitive keys
 - Uses age (X25519) for modern encryption
 - Library + CLI
 - CI-friendly (supports key via env var)
+- Automatic file layering with precedence rules
 
 ## Install
 
@@ -64,17 +66,21 @@ let dec = manager.decrypt_value(&enc)?;
 
 ## File Layering
 
-One of dotenvage's key features is **automatic file layering** - multiple `.env*` files are loaded and merged with a clear precedence order. Later files override values from earlier files.
+One of dotenvage's key features is **automatic file layering** - multiple `.env*`
+files are loaded and merged with a clear precedence order.
+Later files override values from earlier files.
 
 ### Loading Order
 
 Files are loaded in this order (later overrides earlier):
 
-1. **`.env`** - Base configuration (committed to repo)
+1. **`.env`** - Base configuration
 2. **`.env.<ENV>`** - Environment-specific (e.g., `.env.local`, `.env.production`)
 3. **`.env.<ENV>-<ARCH>`** - Architecture-specific (e.g., `.env.local-arm64`)
 4. **`.env.<ENV>.<USER>`** - User-specific overrides (e.g., `.env.local.alice`)
 5. **`.env.pr-<NUMBER>`** - PR-specific (GitHub Actions only)
+
+**All files can be safely committed to git** since secrets are encrypted.
 
 **Note**: Separators can be `.` or `-` (e.g., `.env.local` or `.env-local` both work)
 
@@ -90,13 +96,13 @@ Files are loaded in this order (later overrides earlier):
 Given these files:
 
 ```bash
-# .env (base)
+# .env - Base config (safe to commit)
 DATABASE_URL=postgres://localhost/dev
 API_KEY=public_key
 
-# .env.local (overrides)
+# .env.local - Local overrides (safe to commit with encryption)
 DATABASE_URL=postgres://localhost/mydb
-SECRET_TOKEN=age[...]  # encrypted
+SECRET_TOKEN=age[...]  # encrypted, safe to commit!
 ```
 
 Running `dotenvage dump` produces:
@@ -107,10 +113,10 @@ SECRET_TOKEN=decrypted_value             # decrypted from .env.local
 ```
 
 This layering system allows you to:
-- Commit base config (`.env`) to version control
-- Keep local overrides (`.env.local`) in `.gitignore`
-- Share environment-specific configs (`.env.production`)
-- Support multiple developers with user-specific overrides
+- **Commit ALL `.env*` files to version control** - secrets are encrypted
+- Share environment-specific configs across the team (`.env.production`, `.env.staging`)
+- Provide user-specific overrides (`.env.local.alice`) without conflicts
+- Configure architecture-specific settings (`.env.local-arm64`)
 
 ## Key Management
 
