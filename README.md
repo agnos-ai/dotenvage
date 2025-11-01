@@ -41,7 +41,10 @@ dotenvage get FLY_API_TOKEN
 # List keys (show lock icon; verbose shows decrypted values)
 dotenvage list --file .env.local --verbose
 
-# Dump decrypted .env to stdout (KEY=VALUE lines)
+# Dump all decrypted env vars (merges all .env* files with layering)
+dotenvage dump
+
+# Dump a specific file
 dotenvage dump .env.local
 ```
 
@@ -58,6 +61,56 @@ let manager = SecretManager::generate()?;
 let enc = manager.encrypt_value("secret")?;
 let dec = manager.decrypt_value(&enc)?;
 ```
+
+## File Layering
+
+One of dotenvage's key features is **automatic file layering** - multiple `.env*` files are loaded and merged with a clear precedence order. Later files override values from earlier files.
+
+### Loading Order
+
+Files are loaded in this order (later overrides earlier):
+
+1. **`.env`** - Base configuration (committed to repo)
+2. **`.env.<ENV>`** - Environment-specific (e.g., `.env.local`, `.env.production`)
+3. **`.env.<ENV>-<ARCH>`** - Architecture-specific (e.g., `.env.local-arm64`)
+4. **`.env.<ENV>.<USER>`** - User-specific overrides (e.g., `.env.local.alice`)
+5. **`.env.pr-<NUMBER>`** - PR-specific (GitHub Actions only)
+
+**Note**: Separators can be `.` or `-` (e.g., `.env.local` or `.env-local` both work)
+
+### Placeholders
+
+- **`<ENV>`**: From `DOTENVAGE_ENV`, `EKG_ENV`, `VERCEL_ENV`, `NODE_ENV`, or defaults to `local`
+- **`<ARCH>`**: From `DOTENVAGE_ARCH` or `EKG_ARCH` (e.g., `arm64`, `x86_64`)
+- **`<USER>`**: From `DOTENVAGE_USER`, `EKG_USER`, or system username
+- **`<PR_NUMBER>`**: Auto-detected from GitHub Actions `GITHUB_REF`
+
+### Example
+
+Given these files:
+
+```bash
+# .env (base)
+DATABASE_URL=postgres://localhost/dev
+API_KEY=public_key
+
+# .env.local (overrides)
+DATABASE_URL=postgres://localhost/mydb
+SECRET_TOKEN=age[...]  # encrypted
+```
+
+Running `dotenvage dump` produces:
+```bash
+DATABASE_URL=postgres://localhost/mydb  # from .env.local
+API_KEY=public_key                       # from .env
+SECRET_TOKEN=decrypted_value             # decrypted from .env.local
+```
+
+This layering system allows you to:
+- Commit base config (`.env`) to version control
+- Keep local overrides (`.env.local`) in `.gitignore`
+- Share environment-specific configs (`.env.production`)
+- Support multiple developers with user-specific overrides
 
 ## Key Management
 
