@@ -104,9 +104,11 @@ impl EnvLoader {
     /// Creates a new `EnvLoader` with a default `SecretManager`.
     ///
     /// This will load the encryption key from standard locations:
-    /// 1. `DOTENVAGE_AGE_KEY` environment variable
+    /// 0. **Auto-discover** `AGE_KEY_NAME` from `.env` or `.env.local` files
+    /// 1. `DOTENVAGE_AGE_KEY` environment variable (full identity string)
     /// 2. `AGE_KEY` environment variable
-    /// 3. Default key file at XDG path (e.g., `~/.local/state/dotenvage/dotenvage.key`)
+    /// 3. Key file at path determined by discovered `AGE_KEY_NAME`
+    /// 4. Default key file at XDG path (e.g., `~/.local/state/dotenvage/dotenvage.key`)
     ///
     /// # Errors
     ///

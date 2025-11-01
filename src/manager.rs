@@ -48,9 +48,11 @@ impl SecretManager {
     ///
     /// # Key Loading Order
     ///
+    /// 0. **Auto-discover** `AGE_KEY_NAME` from `.env` or `.env.local` files (looks for `AGE_KEY_NAME` or `*_AGE_KEY_NAME`)
     /// 1. `DOTENVAGE_AGE_KEY` environment variable (full identity string)
     /// 2. `AGE_KEY` environment variable (for compatibility)
-    /// 3. Default key file at XDG path (e.g., `~/.local/state/dotenvage/dotenvage.key`)
+    /// 3. Key file at path determined by `AGE_KEY_NAME` (e.g., `~/.local/state/ekg/myproject.key` if `AGE_KEY_NAME=ekg/myproject`)
+    /// 4. Default key file: `~/.local/state/{CARGO_PKG_NAME}/dotenvage.key`
     ///
     /// # Errors
     ///
