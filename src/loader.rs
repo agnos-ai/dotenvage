@@ -69,12 +69,12 @@ impl EnvLoader {
     }
 
     fn gen_names(parts: &[&str]) -> Vec<String> {
-        let n = parts.len();
+        let num_parts = parts.len();
         let mut names = Vec::new();
-        for mask in 0..(1u32 << n) {
+        for mask in 0..(1u32 << num_parts) {
             let mut name = String::from(".env");
-            for (i, part) in parts.iter().enumerate() {
-                let sep = if (mask >> i) & 1 == 1 { '-' } else { '.' };
+            for (idx, part) in parts.iter().enumerate() {
+                let sep = if (mask >> idx) & 1 == 1 { '-' } else { '.' };
                 name.push(sep);
                 name.push_str(part);
             }
@@ -475,16 +475,16 @@ impl EnvLoader {
         if let Ok(gref) = std::env::var("GITHUB_REF")
             && let Some(idx) = gref.find("/pull/")
         {
-            let mut n = String::new();
+            let mut pr_number = String::new();
             for c in gref[idx + 6..].chars() {
                 if c.is_ascii_digit() {
-                    n.push(c);
+                    pr_number.push(c);
                 } else {
                     break;
                 }
             }
-            if !n.is_empty() {
-                return Some(n);
+            if !pr_number.is_empty() {
+                return Some(pr_number);
             }
         }
 
