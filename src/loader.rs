@@ -1,19 +1,26 @@
 //! Environment loader with automatic secret decryption.
 //!
-//! This module provides [`EnvLoader`] for loading and decrypting environment files,
-//! and [`AutoDetectPatterns`] for automatically identifying sensitive variables.
+//! This module provides [`EnvLoader`] for loading and decrypting environment
+//! files, and [`AutoDetectPatterns`] for automatically identifying sensitive
+//! variables.
 
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
-use crate::error::{SecretsError, SecretsResult};
+use crate::error::{
+    SecretsError,
+    SecretsResult,
+};
 use crate::manager::SecretManager;
 
 /// Loads environment files with automatic decryption of encrypted values.
 ///
-/// `EnvLoader` reads `.env` files in a specific order and automatically decrypts
-/// any encrypted values it encounters. It supports multiple environment variants
-/// and user-specific configuration files.
+/// `EnvLoader` reads `.env` files in a specific order and automatically
+/// decrypts any encrypted values it encounters. It supports multiple
+/// environment variants and user-specific configuration files.
 ///
 /// # Examples
 ///
@@ -37,19 +44,23 @@ use crate::manager::SecretManager;
 /// 1. `.env` - Base configuration
 /// 2. `.env.<ENV>` - Environment-specific
 /// 3. `.env.<ENV>-<ARCH>` - Architecture-specific (if `<ARCH>` is set)
-/// 4. `.env.<ENV>.<USER>` or `.env.<ENV>-<ARCH>.<USER>` - User-specific overrides
+/// 4. `.env.<ENV>.<USER>` or `.env.<ENV>-<ARCH>.<USER>` - User-specific
+///    overrides
 /// 5. `.env.pr-<PR_NUMBER>` - PR-specific (GitHub Actions only)
 ///
-/// **Note**: Separators can be either `.` or `-` (e.g., `.env.local` or `.env-local`)
+/// **Note**: Separators can be either `.` or `-` (e.g., `.env.local` or
+/// `.env-local`)
 ///
 /// # Placeholders
 ///
 /// The following placeholders are resolved from environment variables:
 ///
 /// - **`<ENV>`**: Environment name (see [`resolve_env()`](Self::resolve_env))
-/// - **`<ARCH>`**: Architecture name (see [`resolve_arch()`](Self::resolve_arch))
+/// - **`<ARCH>`**: Architecture name (see
+///   [`resolve_arch()`](Self::resolve_arch))
 /// - **`<USER>`**: Username (see [`resolve_user()`](Self::resolve_user))
-/// - **`<PR_NUMBER>`**: Pull request number (see [`resolve_pr_number()`](Self::resolve_pr_number))
+/// - **`<PR_NUMBER>`**: Pull request number (see
+///   [`resolve_pr_number()`](Self::resolve_pr_number))
 pub struct EnvLoader {
     manager: SecretManager,
 }
@@ -108,7 +119,8 @@ impl EnvLoader {
     /// 1. `DOTENVAGE_AGE_KEY` environment variable (full identity string)
     /// 2. `AGE_KEY` environment variable
     /// 3. Key file at path determined by discovered `AGE_KEY_NAME`
-    /// 4. Default key file at XDG path (e.g., `~/.local/state/dotenvage/dotenvage.key`)
+    /// 4. Default key file at XDG path (e.g.,
+    ///    `~/.local/state/dotenvage/dotenvage.key`)
     ///
     /// # Errors
     ///
@@ -126,7 +138,10 @@ impl EnvLoader {
     /// # Examples
     ///
     /// ```rust,no_run
-    /// use dotenvage::{SecretManager, EnvLoader};
+    /// use dotenvage::{
+    ///     EnvLoader,
+    ///     SecretManager,
+    /// };
     ///
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// let manager = SecretManager::generate()?;
@@ -164,7 +179,8 @@ impl EnvLoader {
         self.load_from_dir(".")
     }
 
-    /// Loads `.env` files from a specific directory using the same order as [`load`](Self::load).
+    /// Loads `.env` files from a specific directory using the same order as
+    /// [`load`](Self::load).
     ///
     /// # Errors
     ///
@@ -280,7 +296,8 @@ impl EnvLoader {
         Ok(vars)
     }
 
-    /// Gets a decrypted environment variable value from the process environment.
+    /// Gets a decrypted environment variable value from the process
+    /// environment.
     ///
     /// If the value is encrypted, it will be automatically decrypted.
     ///
@@ -350,9 +367,12 @@ impl EnvLoader {
     ///
     /// 1. `DOTENVAGE_ARCH` environment variable (preferred)
     /// 2. `EKG_ARCH` environment variable (alternative)
-    /// 3. `TARGETARCH` environment variable (Docker multi-platform builds, e.g., "amd64", "arm64")
-    /// 4. `TARGETPLATFORM` environment variable (Docker, parsed for arch, e.g., "linux/arm64" → "arm64")
-    /// 5. `RUNNER_ARCH` environment variable (GitHub Actions, e.g., "X64", "ARM64")
+    /// 3. `TARGETARCH` environment variable (Docker multi-platform builds,
+    ///    e.g., "amd64", "arm64")
+    /// 4. `TARGETPLATFORM` environment variable (Docker, parsed for arch, e.g.,
+    ///    "linux/arm64" → "arm64")
+    /// 5. `RUNNER_ARCH` environment variable (GitHub Actions, e.g., "X64",
+    ///    "ARM64")
     /// 6. Returns `None` if none are set
     ///
     /// The value is always converted to lowercase and normalized:
@@ -495,8 +515,8 @@ impl EnvLoader {
 /// Auto-detection patterns for identifying sensitive environment variables.
 ///
 /// This utility helps determine which environment variables should be encrypted
-/// based on their names. It uses common patterns to identify secrets like tokens,
-/// passwords, and API keys.
+/// based on their names. It uses common patterns to identify secrets like
+/// tokens, passwords, and API keys.
 ///
 /// # Examples
 ///
@@ -514,7 +534,8 @@ impl AutoDetectPatterns {
     /// Patterns indicating a variable should be encrypted.
     ///
     /// Variables containing any of these substrings (case-insensitive) will be
-    /// automatically encrypted unless they match a pattern in [`NEVER_ENCRYPT`](Self::NEVER_ENCRYPT).
+    /// automatically encrypted unless they match a pattern in
+    /// [`NEVER_ENCRYPT`](Self::NEVER_ENCRYPT).
     pub const ENCRYPT_PATTERNS: &'static [&'static str] = &[
         "TOKEN",
         "SECRET",
@@ -544,7 +565,8 @@ impl AutoDetectPatterns {
 
     /// Returns `true` if an environment variable name should be encrypted.
     ///
-    /// This checks the variable name against [`ENCRYPT_PATTERNS`](Self::ENCRYPT_PATTERNS)
+    /// This checks the variable name against
+    /// [`ENCRYPT_PATTERNS`](Self::ENCRYPT_PATTERNS)
     /// and [`NEVER_ENCRYPT`](Self::NEVER_ENCRYPT) lists.
     ///
     /// # Examples

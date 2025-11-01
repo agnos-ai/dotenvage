@@ -1,7 +1,9 @@
 //! Tests for AGE_KEY_NAME feature - project-specific key discovery
 
-use std::env;
-use std::fs;
+use std::{
+    env,
+    fs,
+};
 
 use serial_test::serial;
 

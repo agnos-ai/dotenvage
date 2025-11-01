@@ -3,14 +3,23 @@
 //! This module provides the core [`SecretManager`] type for encrypting and
 //! decrypting sensitive values using the [age encryption tool](https://age-encryption.org/).
 
-use std::io::{Read, Write};
-use std::path::{Path, PathBuf};
+use std::io::{
+    Read,
+    Write,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 use age::secrecy::ExposeSecret;
 use age::x25519;
 use base64::Engine as _;
 
-use crate::error::{SecretsError, SecretsResult};
+use crate::error::{
+    SecretsError,
+    SecretsResult,
+};
 
 /// Manages encryption and decryption of secrets using age/X25519.
 ///
@@ -44,14 +53,17 @@ pub struct SecretManager {
 }
 
 impl SecretManager {
-    /// Creates a new `SecretManager` by loading the key from standard locations.
+    /// Creates a new `SecretManager` by loading the key from standard
+    /// locations.
     ///
     /// # Key Loading Order
     ///
-    /// 0. **Auto-discover** `AGE_KEY_NAME` from `.env` or `.env.local` files (looks for `AGE_KEY_NAME` or `*_AGE_KEY_NAME`)
+    /// 0. **Auto-discover** `AGE_KEY_NAME` from `.env` or `.env.local` files
+    ///    (looks for `AGE_KEY_NAME` or `*_AGE_KEY_NAME`)
     /// 1. `DOTENVAGE_AGE_KEY` environment variable (full identity string)
     /// 2. `AGE_KEY` environment variable (for compatibility)
-    /// 3. Key file at path determined by `AGE_KEY_NAME` (e.g., `~/.local/state/ekg/myproject.key` if `AGE_KEY_NAME=ekg/myproject`)
+    /// 3. Key file at path determined by `AGE_KEY_NAME` (e.g.,
+    ///    `~/.local/state/ekg/myproject.key` if `AGE_KEY_NAME=ekg/myproject`)
     /// 4. Default key file: `~/.local/state/{CARGO_PKG_NAME}/dotenvage.key`
     ///
     /// # Errors
@@ -75,7 +87,8 @@ impl SecretManager {
     /// Generates a new random identity.
     ///
     /// Use this when creating a new encryption key. You'll typically want to
-    /// save this key using [`save_key`](Self::save_key) or [`save_key_to_default`](Self::save_key_to_default).
+    /// save this key using [`save_key`](Self::save_key) or
+    /// [`save_key_to_default`](Self::save_key_to_default).
     ///
     /// # Examples
     ///
@@ -96,7 +109,8 @@ impl SecretManager {
 
     /// Creates a `SecretManager` from an existing identity.
     ///
-    /// Use this when you have an age X25519 identity that you want to use directly.
+    /// Use this when you have an age X25519 identity that you want to use
+    /// directly.
     pub fn from_identity(identity: x25519::Identity) -> Self {
         Self { identity }
     }
@@ -127,9 +141,11 @@ impl SecretManager {
         self.public_key().to_string()
     }
 
-    /// Encrypts a plaintext value and wraps it in the format `ENC[AGE:b64:...]`.
+    /// Encrypts a plaintext value and wraps it in the format
+    /// `ENC[AGE:b64:...]`.
     ///
-    /// The encrypted value can be safely stored in `.env` files and version control.
+    /// The encrypted value can be safely stored in `.env` files and version
+    /// control.
     ///
     /// # Errors
     ///
@@ -170,9 +186,9 @@ impl SecretManager {
 
     /// Decrypts a value if it's encrypted; otherwise returns it unchanged.
     ///
-    /// This method automatically detects whether a value is encrypted by checking
-    /// for the `ENC[AGE:b64:...]` prefix or the legacy armor format. If the value
-    /// is not encrypted, it's returned as-is.
+    /// This method automatically detects whether a value is encrypted by
+    /// checking for the `ENC[AGE:b64:...]` prefix or the legacy armor
+    /// format. If the value is not encrypted, it's returned as-is.
     ///
     /// # Supported Formats
     ///
@@ -261,7 +277,9 @@ impl SecretManager {
     /// ```rust
     /// use dotenvage::SecretManager;
     ///
-    /// assert!(SecretManager::is_encrypted("ENC[AGE:b64:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+...]"));
+    /// assert!(SecretManager::is_encrypted(
+    ///     "ENC[AGE:b64:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+...]"
+    /// ));
     /// assert!(!SecretManager::is_encrypted("plaintext"));
     /// ```
     pub fn is_encrypted(value: &str) -> bool {
@@ -348,14 +366,18 @@ impl SecretManager {
     ///
     /// ## Key Loading Priority
     ///
-    /// 0. Read .env files to discover `AGE_KEY_NAME` (or `*_AGE_KEY_NAME`) for project-specific keys
+    /// 0. Read .env files to discover `AGE_KEY_NAME` (or `*_AGE_KEY_NAME`) for
+    ///    project-specific keys
     /// 1. `DOTENVAGE_AGE_KEY` env var (full identity string)
     /// 2. `AGE_KEY` env var (full identity string)
-    /// 3. Key file at path determined by `AGE_KEY_NAME` from .env or environment
-    /// 4. Default key file: `~/.local/state/{CARGO_PKG_NAME or "dotenvage"}/dotenvage.key`
+    /// 3. Key file at path determined by `AGE_KEY_NAME` from .env or
+    ///    environment
+    /// 4. Default key file: `~/.local/state/{CARGO_PKG_NAME or
+    ///    "dotenvage"}/dotenvage.key`
     pub fn load_key() -> SecretsResult<Self> {
-        // FIRST: Try to discover AGE_KEY_NAME from .env files before doing anything else
-        // This allows project-specific key discovery from .env configuration
+        // FIRST: Try to discover AGE_KEY_NAME from .env files before doing anything
+        // else This allows project-specific key discovery from .env
+        // configuration
         Self::discover_age_key_name_from_env_files();
 
         if let Ok(data) = std::env::var("DOTENVAGE_AGE_KEY") {
@@ -375,10 +397,12 @@ impl SecretManager {
         )))
     }
 
-    /// Attempts to discover AGE_KEY_NAME from .env files in the current directory.
+    /// Attempts to discover AGE_KEY_NAME from .env files in the current
+    /// directory.
     ///
-    /// This reads .env files (without decryption) to find AGE_KEY_NAME or *_AGE_KEY_NAME
-    /// variables and sets them in the environment so they can be used for key path resolution.
+    /// This reads .env files (without decryption) to find AGE_KEY_NAME or
+    /// *_AGE_KEY_NAME variables and sets them in the environment so they
+    /// can be used for key path resolution.
     ///
     /// Priority order for .env files:
     /// 1. .env.local
@@ -402,7 +426,8 @@ impl SecretManager {
         }
     }
 
-    /// Searches a single .env file for AGE_KEY_NAME or *_AGE_KEY_NAME variables.
+    /// Searches a single .env file for AGE_KEY_NAME or *_AGE_KEY_NAME
+    /// variables.
     fn find_age_key_name_in_file(file_path: &str) -> Option<String> {
         let content = std::fs::read_to_string(file_path).ok()?;
 
@@ -476,7 +501,8 @@ impl SecretManager {
 
     /// Returns the default key path (for backward compatibility).
     ///
-    /// Prefer using `key_path_from_env_or_default()` which respects AGE_KEY_NAME.
+    /// Prefer using `key_path_from_env_or_default()` which respects
+    /// AGE_KEY_NAME.
     ///
     /// # Examples
     ///
@@ -518,8 +544,9 @@ impl SecretManager {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use serial_test::serial;
+
+    use super::*;
 
     #[test]
     fn test_encrypt_decrypt_roundtrip() {
