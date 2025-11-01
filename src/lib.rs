@@ -47,5 +47,6 @@ pub use crate::loader::{
     Arch,
     AutoDetectPatterns,
     EnvLoader,
+    Os,
 };
 pub use crate::manager::SecretManager;

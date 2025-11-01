@@ -87,8 +87,8 @@ impl std::str::FromStr for Arch {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let s_lower = s.to_lowercase();
         match s_lower.as_str() {
-            // AMD64 / x86-64
-            "amd64" | "x64" | "x86_64" | "x86-64" => Ok(Self::Amd64),
+            // AMD64 / x86-64 - NO DOTS ALLOWED
+            "amd64" | "x64" | "x86_64" => Ok(Self::Amd64),
             // ARM64 / AArch64
             "arm64" | "aarch64" => Ok(Self::Arm64),
             // 32-bit ARM
@@ -101,6 +101,99 @@ impl std::str::FromStr for Arch {
             "ppc64le" | "powerpc64le" => Ok(Self::Ppc64le),
             // s390x
             "s390x" => Ok(Self::S390x),
+            _ => Err(()),
+        }
+    }
+}
+
+/// Supported operating systems for file naming.
+///
+/// These are the canonical OS names used in `.env.<OS>` file patterns.
+/// Input values are normalized to these canonical forms.
+///
+/// **Important**: Canonical values must NOT contain dots to maintain
+/// unambiguous parsing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Os {
+    /// Linux
+    ///
+    /// Matches: `linux`
+    Linux,
+
+    /// macOS / Darwin
+    ///
+    /// Matches: `macos`, `darwin`, `osx`
+    Macos,
+
+    /// Windows
+    ///
+    /// Matches: `windows`, `win32`, `win`
+    Windows,
+
+    /// FreeBSD
+    ///
+    /// Matches: `freebsd`
+    Freebsd,
+
+    /// OpenBSD
+    ///
+    /// Matches: `openbsd`
+    Openbsd,
+
+    /// NetBSD
+    ///
+    /// Matches: `netbsd`
+    Netbsd,
+
+    /// Android
+    ///
+    /// Matches: `android`
+    Android,
+
+    /// iOS
+    ///
+    /// Matches: `ios`
+    Ios,
+}
+
+impl Os {
+    /// Returns the canonical file name suffix for this OS.
+    ///
+    /// This is the value used in `.env.<OS>` file patterns.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Linux => "linux",
+            Self::Macos => "macos",
+            Self::Windows => "windows",
+            Self::Freebsd => "freebsd",
+            Self::Openbsd => "openbsd",
+            Self::Netbsd => "netbsd",
+            Self::Android => "android",
+            Self::Ios => "ios",
+        }
+    }
+}
+
+impl std::fmt::Display for Os {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
+impl std::str::FromStr for Os {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let s_lower = s.to_lowercase();
+        match s_lower.as_str() {
+            "linux" => Ok(Self::Linux),
+            "macos" | "darwin" | "osx" => Ok(Self::Macos),
+            "windows" | "win32" | "win" => Ok(Self::Windows),
+            "freebsd" => Ok(Self::Freebsd),
+            "openbsd" => Ok(Self::Openbsd),
+            "netbsd" => Ok(Self::Netbsd),
+            "android" => Ok(Self::Android),
+            "ios" => Ok(Self::Ios),
             _ => Err(()),
         }
     }
@@ -168,31 +261,6 @@ impl EnvLoader {
             }
         }
         None
-    }
-
-    fn gen_names(parts: &[&str]) -> Vec<String> {
-        let num_parts = parts.len();
-        let mut names = Vec::new();
-        for mask in 0..(1u32 << num_parts) {
-            let mut name = String::from(".env");
-            for (idx, part) in parts.iter().enumerate() {
-                let sep = if (mask >> idx) & 1 == 1 { '-' } else { '.' };
-                name.push(sep);
-                name.push_str(part);
-            }
-            names.push(name);
-        }
-        names
-    }
-
-    fn add_names_if_exist(dir: &Path, paths: &mut Vec<PathBuf>, parts: &[&str]) {
-        for name in Self::gen_names(parts) {
-            if let Some(p) = Self::find_file_case_insensitive(dir, &name)
-                && !paths.iter().any(|x| x == &p)
-            {
-                paths.push(p);
-            }
-        }
     }
 
     fn add_exact_if_exist(dir: &Path, paths: &mut Vec<PathBuf>, filename: &str) {
@@ -298,42 +366,90 @@ impl EnvLoader {
 
     /// Computes the ordered list of env file paths to load.
     ///
-    /// This method determines which `.env` files exist and should be loaded,
-    /// in the correct precedence order.
+    /// This method uses a **power-set generation** approach: it resolves ENV,
+    /// OS, ARCH, and USER from the environment, then generates all possible
+    /// combinations of these values (maintaining canonical order: ENV, OS,
+    /// ARCH, USER).
+    ///
+    /// Files are loaded in specificity order - more parts means more specific,
+    /// which means higher precedence.
     ///
     /// # Returns
     ///
     /// A vector of paths in load order (later paths override earlier ones).
+    ///
+    /// # Examples
+    ///
+    /// With `ENV=local`, `OS=linux`, `ARCH=amd64`, `USER=alice`, this
+    /// generates:
+    /// - `.env`
+    /// - `.env.local`
+    /// - `.env.linux`
+    /// - `.env.amd64`
+    /// - `.env.alice`
+    /// - `.env.local.linux`
+    /// - `.env.local.amd64`
+    /// - `.env.local.alice`
+    /// - `.env.linux.amd64`
+    /// - `.env.linux.alice`
+    /// - `.env.amd64.alice`
+    /// - `.env.local.linux.amd64`
+    /// - `.env.local.linux.alice`
+    /// - `.env.local.amd64.alice`
+    /// - `.env.linux.amd64.alice`
+    /// - `.env.local.linux.amd64.alice`
+    /// - `.env.pr-<NUMBER>` (if applicable)
     pub fn resolve_env_paths(&self, dir: &Path) -> Vec<PathBuf> {
         let mut paths: Vec<PathBuf> = Vec::new();
 
-        // 1) Always read .env
+        // Always start with base .env
         Self::add_exact_if_exist(dir, &mut paths, ".env");
 
-        // 2) Resolve ENV and load environment-specific files
+        // Resolve all dimensions
         let env = Self::resolve_env();
-        Self::add_names_if_exist(dir, &mut paths, &[&env]);
-
-        // 3) Arch-specific: .env.<ENV>-<ARCH>
+        let os = Self::resolve_os();
         let arch = Self::resolve_arch();
-        if let Some(ref a) = arch {
-            Self::add_names_if_exist(dir, &mut paths, &[&env, a]);
-        }
-
-        // 4) User-specific layers
         let user = Self::resolve_user();
-        if let Some(ref u) = user {
-            // .env.<USER> - user's personal overrides
-            Self::add_names_if_exist(dir, &mut paths, &[u]);
-            // .env.<ENV>.<USER> - user overrides for specific env
-            Self::add_names_if_exist(dir, &mut paths, &[&env, u]);
-            // .env.<ENV>-<ARCH>.<USER> - user overrides for env+arch
-            if let Some(ref a) = arch {
-                Self::add_names_if_exist(dir, &mut paths, &[&env, a, u]);
+
+        // Generate power set: all combinations of [env, os, arch, user]
+        // We use a bitmask approach: 4 bits for 4 optional values
+        // Bit 0 = ENV, Bit 1 = OS, Bit 2 = ARCH, Bit 3 = USER
+        for mask in 1..16 {
+            // mask from 1 to 15 (excluding 0 which is just .env)
+            let mut parts = Vec::new();
+
+            // Maintain canonical order: ENV, OS, ARCH, USER
+            if mask & 1 != 0 {
+                parts.push(env.as_str());
             }
+            if mask & 2 != 0 {
+                if let Some(ref o) = os {
+                    parts.push(o.as_str());
+                } else {
+                    continue; // Skip this combination if OS not available
+                }
+            }
+            if mask & 4 != 0 {
+                if let Some(ref a) = arch {
+                    parts.push(a.as_str());
+                } else {
+                    continue; // Skip this combination if ARCH not available
+                }
+            }
+            if mask & 8 != 0 {
+                if let Some(ref u) = user {
+                    parts.push(u.as_str());
+                } else {
+                    continue; // Skip this combination if USER not available
+                }
+            }
+
+            // Build filename with dots as separators
+            let filename = format!(".env.{}", parts.join("."));
+            Self::add_exact_if_exist(dir, &mut paths, &filename);
         }
 
-        // 5) PR-specific only on GitHub Actions PRs
+        // PR-specific always comes last (highest precedence)
         if let Some(pr_number) = Self::resolve_pr_number() {
             Self::add_exact_if_exist(dir, &mut paths, &format!(".env.pr-{}", pr_number));
         }
@@ -534,6 +650,69 @@ impl EnvLoader {
             arch.parse::<Arch>()
                 .map(|a| a.to_string())
                 .unwrap_or_else(|_| arch.to_lowercase()),
+        )
+    }
+
+    /// Resolves the `<OS>` placeholder for OS-specific file names.
+    ///
+    /// The operating system is resolved from the first available source:
+    ///
+    /// 1. `DOTENVAGE_OS` environment variable (preferred)
+    /// 2. `EKG_OS` environment variable (alternative)
+    /// 3. `CARGO_CFG_TARGET_OS` environment variable (Cargo build-time, e.g.,
+    ///    "linux", "macos", "windows")
+    /// 4. `TARGET` environment variable (parsed from target triple, e.g.,
+    ///    "x86_64-unknown-linux-gnu" → "linux")
+    /// 5. `RUNNER_OS` environment variable (GitHub Actions, e.g., "Linux",
+    ///    "macOS", "Windows")
+    /// 6. `std::env::consts::OS` (runtime detection)
+    ///
+    /// # Supported Operating Systems
+    ///
+    /// - **`linux`**: Linux
+    /// - **`macos`**: macOS (aliases: `darwin`, `osx`)
+    /// - **`windows`**: Windows (aliases: `win32`, `win`)
+    /// - **`freebsd`**: FreeBSD
+    /// - **`openbsd`**: OpenBSD
+    /// - **`netbsd`**: NetBSD
+    /// - **`android`**: Android
+    /// - **`ios`**: iOS
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use dotenvage::EnvLoader;
+    ///
+    /// // Typically auto-detects from runtime or build-time
+    /// if let Some(os) = EnvLoader::resolve_os() {
+    ///     println!("OS: {}", os);
+    /// }
+    /// ```
+    pub fn resolve_os() -> Option<String> {
+        let os = std::env::var("DOTENVAGE_OS")
+            .ok()
+            .filter(|s| !s.is_empty())
+            .or_else(|| std::env::var("EKG_OS").ok().filter(|s| !s.is_empty()))
+            .or_else(|| {
+                std::env::var("CARGO_CFG_TARGET_OS")
+                    .ok()
+                    .filter(|s| !s.is_empty())
+            })
+            .or_else(|| {
+                // Parse TARGET triple (e.g., "x86_64-unknown-linux-gnu" → "linux")
+                std::env::var("TARGET")
+                    .ok()
+                    .filter(|s| !s.is_empty())
+                    .and_then(|t| t.split('-').nth(2).map(String::from))
+            })
+            .or_else(|| std::env::var("RUNNER_OS").ok().filter(|s| !s.is_empty()))
+            .or_else(|| Some(std::env::consts::OS.to_string()))?;
+
+        // Try to normalize to a canonical OS name
+        Some(
+            os.parse::<Os>()
+                .map(|o| o.to_string())
+                .unwrap_or_else(|_| os.to_lowercase()),
         )
     }
 

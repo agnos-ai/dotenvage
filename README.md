@@ -74,26 +74,69 @@ Later files override values from earlier files.
 
 ### Loading Order
 
-Files are loaded in this order (later overrides earlier):
+Files are loaded using a **flexible power-set algorithm** that generates all possible combinations 
+of ENV, OS, ARCH, and USER. This allows any combination you need without being constrained by a 
+fixed hierarchy.
 
-1. **`.env`** - Base configuration
-2. **`.env.<ENV>`** - Environment-specific (e.g., `.env.local`, `.env.production`)
-3. **`.env.<ENV>-<ARCH>`** - Architecture-specific (e.g., `.env.local-arm64`)
-4. **`.env.<USER>`** - User-specific overrides (e.g., `.env.alice`)
-5. **`.env.<ENV>.<USER>`** - User overrides for specific environment (e.g., `.env.local.alice`)
-6. **`.env.<ENV>-<ARCH>.<USER>`** - User overrides for env+arch combo (e.g., `.env.local-arm64.alice`)
-7. **`.env.pr-<NUMBER>`** - PR-specific (GitHub Actions only)
+**Key principle**: All multi-part file names use **dots as separators only** (not dashes), 
+ensuring unambiguous parsing.
+
+Files are loaded in **specificity order** (later overrides earlier):
+
+1. **`.env`** - Base configuration (always first)
+2. **Single-part patterns**: `.env.<ENV>`, `.env.<OS>`, `.env.<ARCH>`, `.env.<USER>`
+3. **Two-part combinations**: `.env.<ENV>.<OS>`, `.env.<ENV>.<ARCH>`, `.env.<ENV>.<USER>`, etc.
+4. **Three-part combinations**: `.env.<ENV>.<OS>.<ARCH>`, `.env.<ENV>.<OS>.<USER>`, etc.
+5. **Four-part combination**: `.env.<ENV>.<OS>.<ARCH>.<USER>` (most specific)
+6. **`.env.pr-<NUMBER>`** - PR-specific (GitHub Actions only, always last)
 
 **All files can be safely committed to git** since secrets are encrypted.
 
-**Note**: Separators can be `.` or `-` (e.g., `.env.local` or `.env-local` both work)
+#### Example Combinations
+
+With `ENV=prod`, `OS=linux`, `ARCH=amd64`, `USER=alice`, these files would be loaded (in order):
+
+- `.env`
+- `.env.prod`
+- `.env.linux`
+- `.env.amd64`
+- `.env.alice`
+- `.env.prod.linux`
+- `.env.prod.amd64`
+- `.env.prod.alice`
+- `.env.linux.amd64`
+- `.env.linux.alice`
+- `.env.amd64.alice`
+- `.env.prod.linux.amd64`
+- `.env.prod.linux.alice`
+- `.env.prod.amd64.alice`
+- `.env.linux.amd64.alice`
+- `.env.prod.linux.amd64.alice`
+
+You only need to create the files you use - the loader checks which exist.
 
 ### Placeholders
 
 - **`<ENV>`**: From `DOTENVAGE_ENV`, `EKG_ENV`, `VERCEL_ENV`, `NODE_ENV`, or defaults to `local`
+- **`<OS>`**: From `DOTENVAGE_OS`, `EKG_OS`, `CARGO_CFG_TARGET_OS`, `TARGET`, `RUNNER_OS`, or runtime detection
 - **`<ARCH>`**: From `DOTENVAGE_ARCH`, `EKG_ARCH`, `CARGO_CFG_TARGET_ARCH`, `TARGET`, `TARGETARCH`, `TARGETPLATFORM`, or `RUNNER_ARCH`
 - **`<USER>`**: From `DOTENVAGE_USER`, `EKG_USER`, or system username
 - **`<PR_NUMBER>`**: Auto-detected from GitHub Actions `GITHUB_REF`
+
+### Supported Operating Systems
+
+The `<OS>` placeholder supports these canonical values (with normalization):
+
+| Canonical | File Example | Aliases (normalized to canonical) |
+|-----------|--------------|-----------------------------------|
+| `linux` | `.env.prod.linux` | - |
+| `macos` | `.env.prod.macos` | `darwin`, `osx` |
+| `windows` | `.env.prod.windows` | `win32`, `win` |
+| `freebsd` | `.env.prod.freebsd` | - |
+| `openbsd` | `.env.prod.openbsd` | - |
+| `netbsd` | `.env.prod.netbsd` | - |
+| `android` | `.env.prod.android` | - |
+| `ios` | `.env.prod.ios` | - |
 
 ### Supported Architectures
 
@@ -101,15 +144,17 @@ The `<ARCH>` placeholder supports these canonical values (with normalization):
 
 | Canonical | File Example | Aliases (normalized to canonical) |
 |-----------|--------------|-----------------------------------|
-| `amd64` | `.env.local-amd64` | `x64`, `x86_64`, `x86-64` |
-| `arm64` | `.env.prod-arm64` | `aarch64` |
-| `arm` | `.env.local-arm` | `armv7`, `armv7l`, `armhf` |
-| `i386` | `.env.local-i386` | `i686`, `x86` |
-| `riscv64` | `.env.local-riscv64` | `riscv64gc` |
-| `ppc64le` | `.env.local-ppc64le` | `powerpc64le` |
-| `s390x` | `.env.local-s390x` | - |
+| `amd64` | `.env.prod.amd64` | `x64`, `x86_64` |
+| `arm64` | `.env.prod.arm64` | `aarch64` |
+| `arm` | `.env.prod.arm` | `armv7`, `armv7l`, `armhf` |
+| `i386` | `.env.prod.i386` | `i686`, `x86` |
+| `riscv64` | `.env.prod.riscv64` | `riscv64gc` |
+| `ppc64le` | `.env.prod.ppc64le` | `powerpc64le` |
+| `s390x` | `.env.prod.s390x` | - |
 
-**Note**: Unknown architecture values are passed through as lowercase (e.g., `docker-s3`) for custom use cases.
+**Note**: Custom architecture values (e.g., `docker-s3`) are passed through as lowercase and can 
+include dashes within the value itself (e.g., `.env.prod.docker-s3`), but dots remain the separator 
+between file name parts.
 
 ### Example
 

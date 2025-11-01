@@ -92,10 +92,10 @@ fn order_env_arch() {
     let tmp = tempfile::tempdir().unwrap();
     std::fs::write(tmp.path().join(".env"), "").unwrap();
     std::fs::write(tmp.path().join(".env.prod"), "").unwrap();
-    std::fs::write(tmp.path().join(".env.prod-docker-s3"), "").unwrap();
+    std::fs::write(tmp.path().join(".env.prod.docker-s3"), "").unwrap();
     let loader = dotenvage::EnvLoader::with_manager(dotenvage::SecretManager::generate().unwrap());
     let got = names(loader.resolve_env_paths(tmp.path()));
-    assert_eq!(got, vec![".env", ".env.prod", ".env.prod-docker-s3"]);
+    assert_eq!(got, vec![".env", ".env.prod", ".env.prod.docker-s3"]);
 }
 
 #[test]
@@ -126,10 +126,10 @@ fn order_user_and_arch() {
     let tmp = tempfile::tempdir().unwrap();
     std::fs::write(tmp.path().join(".env"), "").unwrap();
     std::fs::write(tmp.path().join(".env.prod"), "").unwrap();
-    std::fs::write(tmp.path().join(".env.prod-docker-s3"), "").unwrap();
+    std::fs::write(tmp.path().join(".env.prod.docker-s3"), "").unwrap();
     std::fs::write(tmp.path().join(".env.alice"), "").unwrap();
-    std::fs::write(tmp.path().join(".env.prod-alice"), "").unwrap();
-    std::fs::write(tmp.path().join(".env.prod-docker-s3-alice"), "").unwrap();
+    std::fs::write(tmp.path().join(".env.prod.alice"), "").unwrap();
+    std::fs::write(tmp.path().join(".env.prod.docker-s3.alice"), "").unwrap();
     let loader = dotenvage::EnvLoader::with_manager(dotenvage::SecretManager::generate().unwrap());
     let got = names(loader.resolve_env_paths(tmp.path()));
     assert_eq!(
@@ -137,10 +137,10 @@ fn order_user_and_arch() {
         vec![
             ".env",
             ".env.prod",
-            ".env.prod-docker-s3",
+            ".env.prod.docker-s3",
             ".env.alice",
-            ".env.prod-alice",
-            ".env.prod-docker-s3-alice"
+            ".env.prod.alice",
+            ".env.prod.docker-s3.alice"
         ]
     );
 }
@@ -171,7 +171,10 @@ fn order_user_without_env() {
     std::fs::write(tmp.path().join(".env.local.bob"), "").unwrap();
     let loader = dotenvage::EnvLoader::with_manager(dotenvage::SecretManager::generate().unwrap());
     let got = names(loader.resolve_env_paths(tmp.path()));
-    assert_eq!(got, vec![".env", ".env.local", ".env.bob", ".env.local.bob"]);
+    assert_eq!(
+        got,
+        vec![".env", ".env.local", ".env.bob", ".env.local.bob"]
+    );
 }
 
 #[test]
@@ -198,10 +201,10 @@ fn order_cargo_target_arch() {
     let tmp = tempfile::tempdir().unwrap();
     std::fs::write(tmp.path().join(".env"), "").unwrap();
     std::fs::write(tmp.path().join(".env.local"), "").unwrap();
-    std::fs::write(tmp.path().join(".env.local-arm64"), "").unwrap();
+    std::fs::write(tmp.path().join(".env.local.arm64"), "").unwrap();
     let loader = dotenvage::EnvLoader::with_manager(dotenvage::SecretManager::generate().unwrap());
     let got = names(loader.resolve_env_paths(tmp.path()));
-    assert_eq!(got, vec![".env", ".env.local", ".env.local-arm64"]);
+    assert_eq!(got, vec![".env", ".env.local", ".env.local.arm64"]);
 }
 
 #[test]
@@ -228,10 +231,10 @@ fn order_target_triple() {
     let tmp = tempfile::tempdir().unwrap();
     std::fs::write(tmp.path().join(".env"), "").unwrap();
     std::fs::write(tmp.path().join(".env.local"), "").unwrap();
-    std::fs::write(tmp.path().join(".env.local-amd64"), "").unwrap();
+    std::fs::write(tmp.path().join(".env.local.amd64"), "").unwrap();
     let loader = dotenvage::EnvLoader::with_manager(dotenvage::SecretManager::generate().unwrap());
     let got = names(loader.resolve_env_paths(tmp.path()));
-    assert_eq!(got, vec![".env", ".env.local", ".env.local-amd64"]);
+    assert_eq!(got, vec![".env", ".env.local", ".env.local.amd64"]);
 }
 
 #[test]
@@ -319,8 +322,8 @@ fn case_insensitive_and_separators() {
     let tmp = tempfile::tempdir().unwrap();
     std::fs::write(tmp.path().join(".ENV"), "").unwrap();
     std::fs::write(tmp.path().join(".ENV.PROD"), "").unwrap();
-    std::fs::write(tmp.path().join(".ENV.PROD-DOCKER-S3-ALICE"), "").unwrap();
+    std::fs::write(tmp.path().join(".ENV.PROD.DOCKER-S3.ALICE"), "").unwrap();
     let loader = dotenvage::EnvLoader::with_manager(dotenvage::SecretManager::generate().unwrap());
     let got = names(loader.resolve_env_paths(tmp.path()));
-    assert_eq!(got, vec![".ENV", ".ENV.PROD", ".ENV.PROD-DOCKER-S3-ALICE"]);
+    assert_eq!(got, vec![".ENV", ".ENV.PROD", ".ENV.PROD.DOCKER-S3.ALICE"]);
 }
