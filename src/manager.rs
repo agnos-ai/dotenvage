@@ -346,17 +346,23 @@ impl SecretManager {
     ///
     /// ## Key Loading Priority
     ///
+    /// 0. Read .env files to discover `AGE_KEY_NAME` (or `*_AGE_KEY_NAME`) for project-specific keys
     /// 1. `DOTENVAGE_AGE_KEY` env var (full identity string)
     /// 2. `AGE_KEY` env var (full identity string)
-    /// 3. Key file at path determined by `AGE_KEY_NAME` from .env
+    /// 3. Key file at path determined by `AGE_KEY_NAME` from .env or environment
     /// 4. Default key file: `~/.local/state/{CARGO_PKG_NAME or "dotenvage"}/dotenvage.key`
     pub fn load_key() -> SecretsResult<Self> {
+        // FIRST: Try to discover AGE_KEY_NAME from .env files before doing anything else
+        // This allows project-specific key discovery from .env configuration
+        Self::discover_age_key_name_from_env_files();
+        
         if let Ok(data) = std::env::var("DOTENVAGE_AGE_KEY") {
             return Self::load_from_string(&data);
         }
         if let Ok(data) = std::env::var("AGE_KEY") {
             return Self::load_from_string(&data);
         }
+        
         let key_path = Self::key_path_from_env_or_default();
         if key_path.exists() {
             return Self::load_from_file(&key_path);
@@ -365,6 +371,55 @@ impl SecretManager {
             "no key found (DOTENVAGE_AGE_KEY, AGE_KEY, or key file at {})",
             key_path.display()
         )))
+    }
+    
+    /// Attempts to discover AGE_KEY_NAME from .env files in the current directory.
+    ///
+    /// This reads .env files (without decryption) to find AGE_KEY_NAME or *_AGE_KEY_NAME
+    /// variables and sets them in the environment so they can be used for key path resolution.
+    /// 
+    /// Priority order for .env files:
+    /// 1. .env.local
+    /// 2. .env
+    fn discover_age_key_name_from_env_files() {
+        // Skip if AGE_KEY_NAME is already set in environment
+        if std::env::var("AGE_KEY_NAME").is_ok() {
+            return;
+        }
+        
+        // Try to read .env.local first, then .env
+        let env_files = [".env.local", ".env"];
+        
+        for env_file in &env_files {
+            if let Ok(content) = std::fs::read_to_string(env_file) {
+                // Parse the file line by line
+                for line in content.lines() {
+                    let line = line.trim();
+                    
+                    // Skip comments and empty lines
+                    if line.is_empty() || line.starts_with('#') {
+                        continue;
+                    }
+                    
+                    // Look for KEY_NAME=value patterns
+                    if let Some((key, value)) = line.split_once('=') {
+                        let key = key.trim();
+                        let value = value.trim().trim_matches('"').trim_matches('\'');
+                        
+                        // Check for AGE_KEY_NAME or *_AGE_KEY_NAME pattern
+                        if key == "AGE_KEY_NAME" || key.ends_with("_AGE_KEY_NAME") {
+                            if !value.is_empty() {
+                                // Set it in the environment for key_path_from_env_or_default to use
+                                unsafe {
+                                    std::env::set_var("AGE_KEY_NAME", value);
+                                }
+                                return;
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     fn load_from_file(path: &Path) -> SecretsResult<Self> {
