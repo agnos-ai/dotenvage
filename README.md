@@ -65,11 +65,8 @@ eval "$(dotenvage dump --export)"
 # or
 source <(dotenvage dump --export)
 
-# Use in Makefile (GNU Make)
-# Generate file, include it, and export all variables
-# Access as environment variables in recipes ($$VAR not $(VAR))
-# $(shell dotenvage dump --make > .env.make)
-# include .env.make
+# Use in Makefile (GNU Make) - secure, no temp file created
+# $(eval $(shell dotenvage dump --make-eval))
 # export
 #
 # In recipes, use: $$DATABASE_URL (shell env var)
@@ -234,12 +231,11 @@ This ensures values with `$`, `` ` ``, `\`, `!`, and other bash special characte
 
 ### GNU Make Integration
 
-Use `--make` to generate Make-compatible variable assignments for use in Makefiles:
+Use `--make-eval` to securely load variables directly into Make without creating temporary files:
 
 ```makefile
-# Makefile example
-$(shell dotenvage dump --make > .env.make)
-include .env.make
+# Makefile example - secure, no temp file with secrets
+$(eval $(shell dotenvage dump --make-eval))
 export
 
 .PHONY: deploy
@@ -248,7 +244,11 @@ deploy:
 	@echo "Using API key: $$API_KEY"
 ```
 
+**Security Note**: `--make-eval` outputs `$(eval ...)` statements that are processed directly by Make, avoiding the security risk of writing decrypted secrets to temporary files.
+
 **Important**: Access variables as `$$VAR` (environment variables) in recipes, not `$(VAR)` (Make variable expansion). The `export` directive makes all variables available to recipe shells as environment variables, where special characters like `$` are properly preserved.
+
+**Alternative**: If you need the Make format for other purposes, `--make` outputs `VAR := value` format (but creates a file if redirected).
 
 This layering system allows you to:
 

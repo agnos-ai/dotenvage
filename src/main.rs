@@ -83,6 +83,9 @@ enum Commands {
         /// Output in GNU Make format (VAR := value) with Make-safe escaping
         #[arg(short, long)]
         make: bool,
+        /// Output as Make $(eval ...) statements for direct inclusion (no temp file needed)
+        #[arg(long)]
+        make_eval: bool,
         /// Prefix each line with 'export ' for bash sourcing
         #[arg(short, long)]
         export: bool,
@@ -127,7 +130,7 @@ fn main() -> Result<()> {
         Commands::Set { pair, file } => set(pair, file),
         Commands::Get { key, file } => get(key, file),
         Commands::List { file, verbose } => list(file, verbose),
-        Commands::Dump { file, bash, make, export } => dump(file, bash, make, export),
+        Commands::Dump { file, bash, make, make_eval, export } => dump(file, bash, make, make_eval, export),
     }
 }
 
@@ -338,7 +341,7 @@ fn list(file: PathBuf, verbose: bool) -> Result<()> {
     Ok(())
 }
 
-fn dump(file: Option<PathBuf>, bash: bool, make: bool, export: bool) -> Result<()> {
+fn dump(file: Option<PathBuf>, bash: bool, make: bool, make_eval: bool, export: bool) -> Result<()> {
     let manager = SecretManager::new().context("Failed to load encryption key")?;
     
     if let Some(file_path) = file {
@@ -349,7 +352,7 @@ fn dump(file: Option<PathBuf>, bash: bool, make: bool, export: bool) -> Result<(
         let content = std::fs::read_to_string(&file_path)
             .with_context(|| format!("Failed to read {}", file_path.display()))?;
         let all_vars = parse_env_file(&content)?;
-        dump_vars(&manager, &all_vars, bash, make, export)?;
+        dump_vars(&manager, &all_vars, bash, make, make_eval, export)?;
     } else {
         // Scan ordered files and show sections for each file
         let loader = dotenvage::EnvLoader::with_manager(manager.clone());
@@ -363,13 +366,13 @@ fn dump(file: Option<PathBuf>, bash: bool, make: bool, export: bool) -> Result<(
                 
                 // Only show section if the file has variables
                 if !vars.is_empty() {
-                    if !is_first && !make {
-                        println!(); // Blank line between sections (not for make mode)
+                    if !is_first && !make && !make_eval {
+                        println!(); // Blank line between sections (not for make modes)
                     }
-                    if !make {
+                    if !make && !make_eval {
                         println!("# {}", p.display());
                     }
-                    dump_vars(&manager, &vars, bash, make, export)?;
+                    dump_vars(&manager, &vars, bash, make, make_eval, export)?;
                     is_first = false;
                 }
             }
@@ -379,7 +382,7 @@ fn dump(file: Option<PathBuf>, bash: bool, make: bool, export: bool) -> Result<(
     Ok(())
 }
 
-fn dump_vars(manager: &SecretManager, vars: &HashMap<String, String>, bash: bool, make: bool, export: bool) -> Result<()> {
+fn dump_vars(manager: &SecretManager, vars: &HashMap<String, String>, bash: bool, make: bool, make_eval: bool, export: bool) -> Result<()> {
     let mut keys: Vec<_> = vars.keys().cloned().collect();
     keys.sort();
     
@@ -389,7 +392,15 @@ fn dump_vars(manager: &SecretManager, vars: &HashMap<String, String>, bash: bool
                 .decrypt_value(value)
                 .with_context(|| format!("Failed to decrypt {}", key))?;
             
-            if make {
+            if make_eval {
+                // GNU Make $(eval ...) format for direct shell inclusion
+                // Each variable becomes: $(eval export VAR := value)
+                // One per line for readability
+                // Uses $$$$ for literal $ since it goes through eval processing
+                let prefix = if export { "export " } else { "" };
+                let escaped_value = escape_for_make_eval(&decrypted_value);
+                println!("$(eval {}{} := {})", prefix, key, escaped_value);
+            } else if make {
                 // GNU Make format: VAR := value (no quotes - they'd be literal)
                 // Values with spaces/special chars are escaped but not quoted
                 // This is intended for use with 'export' and accessing as $$VAR in recipes
@@ -419,6 +430,7 @@ fn dump_vars(manager: &SecretManager, vars: &HashMap<String, String>, bash: bool
             }
         }
     }
+    
     Ok(())
 }
 
@@ -507,6 +519,33 @@ fn escape_for_make(value: &str) -> String {
         match c {
             // Use $$ to get literal $ in the environment variable
             '$' => result.push_str("$$"),
+            // Hash starts a comment in Make - escape it
+            '#' => result.push_str("\\#"),
+            // Backslash needs escaping
+            '\\' => result.push_str("\\\\"),
+            // Spaces and other chars are fine in Make variable values
+            _ => result.push(c),
+        }
+    }
+    result
+}
+
+/// Escapes a string for use in GNU Make $(eval ...) statements
+/// 
+/// When using $(eval $(shell dotenvage dump --make-eval)), the value passes through:
+/// 1. shell: returns the string with $(eval ...) statements
+/// 2. $(eval ...): processes the assignment, $$ becomes $
+/// 3. Variable is stored and exported
+/// 4. Recipe: $$VAR accesses the environment variable
+/// 
+/// So we use $$$$ which becomes $$ after eval, then $ in the environment variable,
+/// and finally $ in the shell when accessed as $$VAR.
+fn escape_for_make_eval(value: &str) -> String {
+    let mut result = String::with_capacity(value.len());
+    for c in value.chars() {
+        match c {
+            // Use $$$$ to get literal $ through eval processing
+            '$' => result.push_str("$$$$"),
             // Hash starts a comment in Make - escape it
             '#' => result.push_str("\\#"),
             // Backslash needs escaping
