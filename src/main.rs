@@ -80,6 +80,9 @@ enum Commands {
         /// Use bash-compliant escaping rules (strict quoting and escaping)
         #[arg(short, long)]
         bash: bool,
+        /// Output in GNU Make format (VAR := value) with Make-safe escaping
+        #[arg(short, long)]
+        make: bool,
         /// Prefix each line with 'export ' for bash sourcing
         #[arg(short, long)]
         export: bool,
@@ -124,7 +127,7 @@ fn main() -> Result<()> {
         Commands::Set { pair, file } => set(pair, file),
         Commands::Get { key, file } => get(key, file),
         Commands::List { file, verbose } => list(file, verbose),
-        Commands::Dump { file, bash, export } => dump(file, bash, export),
+        Commands::Dump { file, bash, make, export } => dump(file, bash, make, export),
     }
 }
 
@@ -335,7 +338,7 @@ fn list(file: PathBuf, verbose: bool) -> Result<()> {
     Ok(())
 }
 
-fn dump(file: Option<PathBuf>, bash: bool, export: bool) -> Result<()> {
+fn dump(file: Option<PathBuf>, bash: bool, make: bool, export: bool) -> Result<()> {
     let manager = SecretManager::new().context("Failed to load encryption key")?;
     
     if let Some(file_path) = file {
@@ -346,7 +349,7 @@ fn dump(file: Option<PathBuf>, bash: bool, export: bool) -> Result<()> {
         let content = std::fs::read_to_string(&file_path)
             .with_context(|| format!("Failed to read {}", file_path.display()))?;
         let all_vars = parse_env_file(&content)?;
-        dump_vars(&manager, &all_vars, bash, export)?;
+        dump_vars(&manager, &all_vars, bash, make, export)?;
     } else {
         // Scan ordered files and show sections for each file
         let loader = dotenvage::EnvLoader::with_manager(manager.clone());
@@ -360,11 +363,13 @@ fn dump(file: Option<PathBuf>, bash: bool, export: bool) -> Result<()> {
                 
                 // Only show section if the file has variables
                 if !vars.is_empty() {
-                    if !is_first {
-                        println!(); // Blank line between sections
+                    if !is_first && !make {
+                        println!(); // Blank line between sections (not for make mode)
                     }
-                    println!("# {}", p.display());
-                    dump_vars(&manager, &vars, bash, export)?;
+                    if !make {
+                        println!("# {}", p.display());
+                    }
+                    dump_vars(&manager, &vars, bash, make, export)?;
                     is_first = false;
                 }
             }
@@ -374,13 +379,9 @@ fn dump(file: Option<PathBuf>, bash: bool, export: bool) -> Result<()> {
     Ok(())
 }
 
-fn dump_vars(manager: &SecretManager, vars: &HashMap<String, String>, bash: bool, export: bool) -> Result<()> {
+fn dump_vars(manager: &SecretManager, vars: &HashMap<String, String>, bash: bool, make: bool, export: bool) -> Result<()> {
     let mut keys: Vec<_> = vars.keys().cloned().collect();
     keys.sort();
-    let prefix = if export { "export " } else { "" };
-    
-    // --export implies --bash (bash-compliant escaping)
-    let use_bash_mode = bash || export;
     
     for key in keys {
         if let Some(value) = vars.get(&key) {
@@ -388,19 +389,32 @@ fn dump_vars(manager: &SecretManager, vars: &HashMap<String, String>, bash: bool
                 .decrypt_value(value)
                 .with_context(|| format!("Failed to decrypt {}", key))?;
             
-            if use_bash_mode {
-                // Bash-compliant mode: strict escaping
-                if needs_bash_quoting(&decrypted_value) {
-                    println!("{}{}=\"{}\"", prefix, key, escape_for_bash_double_quotes(&decrypted_value));
-                } else {
-                    println!("{}{}={}", prefix, key, decrypted_value);
-                }
+            if make {
+                // GNU Make format: VAR := value (no quotes - they'd be literal)
+                // Values with spaces/special chars are escaped but not quoted
+                // This is intended for use with 'export' and accessing as $$VAR in recipes
+                let prefix = if export { "export " } else { "" };
+                let escaped_value = escape_for_make(&decrypted_value);
+                println!("{}{} := {}", prefix, key, escaped_value);
             } else {
-                // Simple .env format: minimal escaping
-                if needs_simple_quoting(&decrypted_value) {
-                    println!("{}{}=\"{}\"", prefix, key, escape_for_simple_quotes(&decrypted_value));
+                // --export implies --bash (bash-compliant escaping)
+                let use_bash_mode = bash || export;
+                let prefix = if export { "export " } else { "" };
+                
+                if use_bash_mode {
+                    // Bash-compliant mode: strict escaping
+                    if needs_bash_quoting(&decrypted_value) {
+                        println!("{}{}=\"{}\"", prefix, key, escape_for_bash_double_quotes(&decrypted_value));
+                    } else {
+                        println!("{}{}={}", prefix, key, decrypted_value);
+                    }
                 } else {
-                    println!("{}{}={}", prefix, key, decrypted_value);
+                    // Simple .env format: minimal escaping
+                    if needs_simple_quoting(&decrypted_value) {
+                        println!("{}{}=\"{}\"", prefix, key, escape_for_simple_quotes(&decrypted_value));
+                    } else {
+                        println!("{}{}={}", prefix, key, decrypted_value);
+                    }
                 }
             }
         }
@@ -468,6 +482,36 @@ fn escape_for_bash_double_quotes(value: &str) -> String {
             // but it's generally safe in scripts and with 'set +H'
             // We'll escape it to be extra safe
             '!' => result.push_str("\\!"),
+            _ => result.push(c),
+        }
+    }
+    result
+}
+
+/// Escapes a string for use in GNU Make variable assignment (without quotes)
+/// 
+/// The value will be stored in a Make variable, exported to the environment,
+/// and accessed as $$VAR in shell recipes. We need to escape for Make's
+/// processing during the include and variable expansion.
+/// 
+/// Key insight: When a Make variable is exported and accessed as $$VAR in a recipe,
+/// the value passes through:
+/// 1. include/assignment: $$ becomes $ in the variable value
+/// 2. export: the variable value is set in the environment  
+/// 3. recipe: $$VAR expands to the environment variable value
+/// 
+/// So we use $$ to get a literal $ in the final environment variable.
+fn escape_for_make(value: &str) -> String {
+    let mut result = String::with_capacity(value.len());
+    for c in value.chars() {
+        match c {
+            // Use $$ to get literal $ in the environment variable
+            '$' => result.push_str("$$"),
+            // Hash starts a comment in Make - escape it
+            '#' => result.push_str("\\#"),
+            // Backslash needs escaping
+            '\\' => result.push_str("\\\\"),
+            // Spaces and other chars are fine in Make variable values
             _ => result.push(c),
         }
     }
