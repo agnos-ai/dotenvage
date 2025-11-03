@@ -74,8 +74,15 @@ enum Commands {
     },
     /// Dump environment file to stdout with all values decrypted
     Dump {
-        #[arg(default_value = ".env.local")]
-        file: PathBuf,
+        /// Specific file to dump (if not provided, scans .env* files in order)
+        #[arg(short, long)]
+        file: Option<PathBuf>,
+        /// Use bash-compliant escaping rules (strict quoting and escaping)
+        #[arg(short, long)]
+        bash: bool,
+        /// Prefix each line with 'export ' for bash sourcing
+        #[arg(short, long)]
+        export: bool,
     },
 }
 
@@ -117,7 +124,7 @@ fn main() -> Result<()> {
         Commands::Set { pair, file } => set(pair, file),
         Commands::Get { key, file } => get(key, file),
         Commands::List { file, verbose } => list(file, verbose),
-        Commands::Dump { file } => dump(file),
+        Commands::Dump { file, bash, export } => dump(file, bash, export),
     }
 }
 
@@ -328,31 +335,141 @@ fn list(file: PathBuf, verbose: bool) -> Result<()> {
     Ok(())
 }
 
-fn dump(file: PathBuf) -> Result<()> {
+fn dump(file: Option<PathBuf>, bash: bool, export: bool) -> Result<()> {
     let manager = SecretManager::new().context("Failed to load encryption key")?;
-    if !file.exists() {
-        anyhow::bail!("File not found: {}", file.display());
+    
+    if let Some(file_path) = file {
+        // Dump specific file only (no comments, just vars)
+        if !file_path.exists() {
+            anyhow::bail!("File not found: {}", file_path.display());
+        }
+        let content = std::fs::read_to_string(&file_path)
+            .with_context(|| format!("Failed to read {}", file_path.display()))?;
+        let all_vars = parse_env_file(&content)?;
+        dump_vars(&manager, &all_vars, bash, export)?;
+    } else {
+        // Scan ordered files and show sections for each file
+        let loader = dotenvage::EnvLoader::with_manager(manager.clone());
+        let paths = loader.resolve_env_paths(Path::new("."));
+        let mut is_first = true;
+        
+        for p in paths {
+            if p.exists() {
+                let content = std::fs::read_to_string(&p)?;
+                let vars = parse_env_file(&content)?;
+                
+                // Only show section if the file has variables
+                if !vars.is_empty() {
+                    if !is_first {
+                        println!(); // Blank line between sections
+                    }
+                    println!("# {}", p.display());
+                    dump_vars(&manager, &vars, bash, export)?;
+                    is_first = false;
+                }
+            }
+        }
     }
-    let content = std::fs::read_to_string(&file)
-        .with_context(|| format!("Failed to read {}", file.display()))?;
-    let vars = parse_env_file(&content)?;
+    
+    Ok(())
+}
+
+fn dump_vars(manager: &SecretManager, vars: &HashMap<String, String>, bash: bool, export: bool) -> Result<()> {
     let mut keys: Vec<_> = vars.keys().cloned().collect();
     keys.sort();
+    let prefix = if export { "export " } else { "" };
+    
+    // --export implies --bash (bash-compliant escaping)
+    let use_bash_mode = bash || export;
+    
     for key in keys {
         if let Some(value) = vars.get(&key) {
             let decrypted_value = manager
                 .decrypt_value(value)
                 .with_context(|| format!("Failed to decrypt {}", key))?;
-            if decrypted_value.contains(char::is_whitespace)
-                || decrypted_value.contains('=')
-                || decrypted_value.contains('"')
-                || decrypted_value.contains('\'')
-            {
-                println!("{}=\"{}\"", key, decrypted_value.replace('"', "\\\""));
+            
+            if use_bash_mode {
+                // Bash-compliant mode: strict escaping
+                if needs_bash_quoting(&decrypted_value) {
+                    println!("{}{}=\"{}\"", prefix, key, escape_for_bash_double_quotes(&decrypted_value));
+                } else {
+                    println!("{}{}={}", prefix, key, decrypted_value);
+                }
             } else {
-                println!("{}={}", key, decrypted_value);
+                // Simple .env format: minimal escaping
+                if needs_simple_quoting(&decrypted_value) {
+                    println!("{}{}=\"{}\"", prefix, key, escape_for_simple_quotes(&decrypted_value));
+                } else {
+                    println!("{}{}={}", prefix, key, decrypted_value);
+                }
             }
         }
     }
     Ok(())
+}
+
+/// Checks if a value needs simple quoting (for .env format)
+fn needs_simple_quoting(value: &str) -> bool {
+    if value.is_empty() {
+        return true;
+    }
+    
+    // Simple check for basic .env format
+    value.contains(char::is_whitespace)
+        || value.contains('=')
+        || value.contains('"')
+        || value.contains('\'')
+}
+
+/// Escapes a string for use inside simple double quotes (.env format)
+fn escape_for_simple_quotes(value: &str) -> String {
+    value.replace('\\', "\\\\").replace('"', "\\\"")
+}
+
+/// Checks if a value needs to be quoted for bash safety
+fn needs_bash_quoting(value: &str) -> bool {
+    if value.is_empty() {
+        return true;
+    }
+    
+    // Bash special characters that require quoting
+    const SPECIAL_CHARS: &[char] = &[
+        ' ', '\t', '\n', '\r',  // Whitespace
+        '$', '`', '\\',          // Expansion/escaping
+        '"', '\'',               // Quotes
+        '&', '|', ';',           // Command separators
+        '<', '>',                // Redirection
+        '(', ')', '{', '}',      // Grouping
+        '[', ']',                // Globbing
+        '*', '?',                // Wildcards
+        '!',                     // History expansion (in interactive shells)
+        '~',                     // Tilde expansion
+        '#',                     // Comments
+        '=',                     // Assignment (problematic in some contexts)
+    ];
+    
+    value.chars().any(|c| SPECIAL_CHARS.contains(&c))
+}
+
+/// Escapes a string for use inside bash double quotes
+fn escape_for_bash_double_quotes(value: &str) -> String {
+    let mut result = String::with_capacity(value.len());
+    for c in value.chars() {
+        match c {
+            // Characters that need escaping inside double quotes
+            '\\' => result.push_str("\\\\"),
+            '"' => result.push_str("\\\""),
+            '$' => result.push_str("\\$"),
+            '`' => result.push_str("\\`"),
+            '\n' => result.push_str("\\n"),
+            '\r' => result.push_str("\\r"),
+            '\t' => result.push_str("\\t"),
+            // Exclamation mark can trigger history expansion in interactive bash
+            // but it's generally safe in scripts and with 'set +H'
+            // We'll escape it to be extra safe
+            '!' => result.push_str("\\!"),
+            _ => result.push(c),
+        }
+    }
+    result
 }
