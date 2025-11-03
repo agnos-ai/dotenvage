@@ -18,6 +18,15 @@ use dotenvage::{
     SecretManager,
 };
 
+/// Options for dumping environment variables
+#[derive(Debug, Clone, Copy)]
+struct DumpOptions {
+    bash: bool,
+    make: bool,
+    make_eval: bool,
+    export: bool,
+}
+
 #[derive(Subcommand, Debug, Clone)]
 enum Commands {
     /// Generate a new encryption key pair
@@ -137,7 +146,15 @@ fn main() -> Result<()> {
             make,
             make_eval,
             export,
-        } => dump(file, bash, make, make_eval, export),
+        } => {
+            let options = DumpOptions {
+                bash,
+                make,
+                make_eval,
+                export,
+            };
+            dump(file, options)
+        }
     }
 }
 
@@ -348,13 +365,7 @@ fn list(file: PathBuf, verbose: bool) -> Result<()> {
     Ok(())
 }
 
-fn dump(
-    file: Option<PathBuf>,
-    bash: bool,
-    make: bool,
-    make_eval: bool,
-    export: bool,
-) -> Result<()> {
+fn dump(file: Option<PathBuf>, options: DumpOptions) -> Result<()> {
     let manager = SecretManager::new().context("Failed to load encryption key")?;
 
     if let Some(file_path) = file {
@@ -365,7 +376,7 @@ fn dump(
         let content = std::fs::read_to_string(&file_path)
             .with_context(|| format!("Failed to read {}", file_path.display()))?;
         let all_vars = parse_env_file(&content)?;
-        dump_vars(&manager, &all_vars, bash, make, make_eval, export)?;
+        dump_vars(&manager, &all_vars, options)?;
     } else {
         // Scan ordered files and show sections for each file
         let loader = dotenvage::EnvLoader::with_manager(manager.clone());
@@ -373,24 +384,44 @@ fn dump(
         let mut is_first = true;
 
         for p in paths {
-            if p.exists() {
-                let content = std::fs::read_to_string(&p)?;
-                let vars = parse_env_file(&content)?;
-
-                // Only show section if the file has variables
-                if !vars.is_empty() {
-                    if !is_first && !make && !make_eval {
-                        println!(); // Blank line between sections (not for make modes)
-                    }
-                    if !make && !make_eval {
-                        println!("# {}", p.display());
-                    }
-                    dump_vars(&manager, &vars, bash, make, make_eval, export)?;
-                    is_first = false;
-                }
-            }
+            process_env_file(&p, &manager, &mut is_first, options)?;
         }
     }
+
+    Ok(())
+}
+
+/// Process a single env file and dump its contents
+fn process_env_file(
+    path: &Path,
+    manager: &SecretManager,
+    is_first: &mut bool,
+    options: DumpOptions,
+) -> Result<()> {
+    if !path.exists() {
+        return Ok(());
+    }
+
+    let content = std::fs::read_to_string(path)?;
+    let vars = parse_env_file(&content)?;
+
+    // Only show section if the file has variables
+    if vars.is_empty() {
+        return Ok(());
+    }
+
+    // Add blank line between sections (except for first section and make modes)
+    let show_section_header = !options.make && !options.make_eval;
+    if !*is_first && show_section_header {
+        println!(); // Blank line between sections
+    }
+
+    if show_section_header {
+        println!("# {}", path.display());
+    }
+
+    dump_vars(manager, &vars, options)?;
+    *is_first = false;
 
     Ok(())
 }
@@ -398,10 +429,7 @@ fn dump(
 fn dump_vars(
     manager: &SecretManager,
     vars: &HashMap<String, String>,
-    bash: bool,
-    make: bool,
-    make_eval: bool,
-    export: bool,
+    options: DumpOptions,
 ) -> Result<()> {
     let mut keys: Vec<_> = vars.keys().cloned().collect();
     keys.sort();
@@ -412,56 +440,71 @@ fn dump_vars(
                 .decrypt_value(value)
                 .with_context(|| format!("Failed to decrypt {}", key))?;
 
-            if make_eval {
-                // GNU Make $(eval ...) format for direct shell inclusion
-                // Each variable becomes: $(eval export VAR := value)
-                // One per line for readability
-                // Uses $$$$ for literal $ since it goes through eval processing
-                let prefix = if export { "export " } else { "" };
-                let escaped_value = escape_for_make_eval(&decrypted_value);
-                println!("$(eval {}{} := {})", prefix, key, escaped_value);
-            } else if make {
-                // GNU Make format: VAR := value (no quotes - they'd be literal)
-                // Values with spaces/special chars are escaped but not quoted
-                // This is intended for use with 'export' and accessing as $$VAR in recipes
-                let prefix = if export { "export " } else { "" };
-                let escaped_value = escape_for_make(&decrypted_value);
-                println!("{}{} := {}", prefix, key, escaped_value);
-            } else {
-                // --export implies --bash (bash-compliant escaping)
-                let use_bash_mode = bash || export;
-                let prefix = if export { "export " } else { "" };
-
-                if use_bash_mode {
-                    // Bash-compliant mode: strict escaping
-                    if needs_bash_quoting(&decrypted_value) {
-                        println!(
-                            "{}{}=\"{}\"",
-                            prefix,
-                            key,
-                            escape_for_bash_double_quotes(&decrypted_value)
-                        );
-                    } else {
-                        println!("{}{}={}", prefix, key, decrypted_value);
-                    }
-                } else {
-                    // Simple .env format: minimal escaping
-                    if needs_simple_quoting(&decrypted_value) {
-                        println!(
-                            "{}{}=\"{}\"",
-                            prefix,
-                            key,
-                            escape_for_simple_quotes(&decrypted_value)
-                        );
-                    } else {
-                        println!("{}{}={}", prefix, key, decrypted_value);
-                    }
-                }
-            }
+            dump_single_var(&key, &decrypted_value, options);
         }
     }
 
     Ok(())
+}
+
+/// Output a single variable in the appropriate format
+fn dump_single_var(key: &str, value: &str, options: DumpOptions) {
+    if options.make_eval {
+        dump_make_eval_var(key, value, options.export);
+    } else if options.make {
+        dump_make_var(key, value, options.export);
+    } else {
+        dump_env_var(key, value, options);
+    }
+}
+
+/// Output variable in GNU Make $(eval ...) format
+fn dump_make_eval_var(key: &str, value: &str, export: bool) {
+    let prefix = if export { "export " } else { "" };
+    let escaped_value = escape_for_make_eval(value);
+    println!("$(eval {}{} := {})", prefix, key, escaped_value);
+}
+
+/// Output variable in GNU Make format
+fn dump_make_var(key: &str, value: &str, export: bool) {
+    let prefix = if export { "export " } else { "" };
+    let escaped_value = escape_for_make(value);
+    println!("{}{} := {}", prefix, key, escaped_value);
+}
+
+/// Output variable in env/bash format
+fn dump_env_var(key: &str, value: &str, options: DumpOptions) {
+    let use_bash_mode = options.bash || options.export;
+    let prefix = if options.export { "export " } else { "" };
+
+    if use_bash_mode {
+        dump_bash_var(key, value, prefix);
+    } else {
+        dump_simple_var(key, value, prefix);
+    }
+}
+
+/// Output variable with bash-compliant escaping
+fn dump_bash_var(key: &str, value: &str, prefix: &str) {
+    if needs_bash_quoting(value) {
+        println!(
+            "{}{}=\"{}\"",
+            prefix,
+            key,
+            escape_for_bash_double_quotes(value)
+        );
+    } else {
+        println!("{}{}={}", prefix, key, value);
+    }
+}
+
+/// Output variable with simple .env format escaping
+fn dump_simple_var(key: &str, value: &str, prefix: &str) {
+    if needs_simple_quoting(value) {
+        println!("{}{}=\"{}\"", prefix, key, escape_for_simple_quotes(value));
+    } else {
+        println!("{}{}={}", prefix, key, value);
+    }
 }
 
 /// Checks if a value needs simple quoting (for .env format)
