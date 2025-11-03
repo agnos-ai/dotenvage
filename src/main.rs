@@ -83,7 +83,8 @@ enum Commands {
         /// Output in GNU Make format (VAR := value) with Make-safe escaping
         #[arg(short, long)]
         make: bool,
-        /// Output as Make $(eval ...) statements for direct inclusion (no temp file needed)
+        /// Output as Make $(eval ...) statements for direct inclusion (no temp
+        /// file needed)
         #[arg(long)]
         make_eval: bool,
         /// Prefix each line with 'export ' for bash sourcing
@@ -130,7 +131,13 @@ fn main() -> Result<()> {
         Commands::Set { pair, file } => set(pair, file),
         Commands::Get { key, file } => get(key, file),
         Commands::List { file, verbose } => list(file, verbose),
-        Commands::Dump { file, bash, make, make_eval, export } => dump(file, bash, make, make_eval, export),
+        Commands::Dump {
+            file,
+            bash,
+            make,
+            make_eval,
+            export,
+        } => dump(file, bash, make, make_eval, export),
     }
 }
 
@@ -341,9 +348,15 @@ fn list(file: PathBuf, verbose: bool) -> Result<()> {
     Ok(())
 }
 
-fn dump(file: Option<PathBuf>, bash: bool, make: bool, make_eval: bool, export: bool) -> Result<()> {
+fn dump(
+    file: Option<PathBuf>,
+    bash: bool,
+    make: bool,
+    make_eval: bool,
+    export: bool,
+) -> Result<()> {
     let manager = SecretManager::new().context("Failed to load encryption key")?;
-    
+
     if let Some(file_path) = file {
         // Dump specific file only (no comments, just vars)
         if !file_path.exists() {
@@ -358,12 +371,12 @@ fn dump(file: Option<PathBuf>, bash: bool, make: bool, make_eval: bool, export: 
         let loader = dotenvage::EnvLoader::with_manager(manager.clone());
         let paths = loader.resolve_env_paths(Path::new("."));
         let mut is_first = true;
-        
+
         for p in paths {
             if p.exists() {
                 let content = std::fs::read_to_string(&p)?;
                 let vars = parse_env_file(&content)?;
-                
+
                 // Only show section if the file has variables
                 if !vars.is_empty() {
                     if !is_first && !make && !make_eval {
@@ -378,20 +391,27 @@ fn dump(file: Option<PathBuf>, bash: bool, make: bool, make_eval: bool, export: 
             }
         }
     }
-    
+
     Ok(())
 }
 
-fn dump_vars(manager: &SecretManager, vars: &HashMap<String, String>, bash: bool, make: bool, make_eval: bool, export: bool) -> Result<()> {
+fn dump_vars(
+    manager: &SecretManager,
+    vars: &HashMap<String, String>,
+    bash: bool,
+    make: bool,
+    make_eval: bool,
+    export: bool,
+) -> Result<()> {
     let mut keys: Vec<_> = vars.keys().cloned().collect();
     keys.sort();
-    
+
     for key in keys {
         if let Some(value) = vars.get(&key) {
             let decrypted_value = manager
                 .decrypt_value(value)
                 .with_context(|| format!("Failed to decrypt {}", key))?;
-            
+
             if make_eval {
                 // GNU Make $(eval ...) format for direct shell inclusion
                 // Each variable becomes: $(eval export VAR := value)
@@ -411,18 +431,28 @@ fn dump_vars(manager: &SecretManager, vars: &HashMap<String, String>, bash: bool
                 // --export implies --bash (bash-compliant escaping)
                 let use_bash_mode = bash || export;
                 let prefix = if export { "export " } else { "" };
-                
+
                 if use_bash_mode {
                     // Bash-compliant mode: strict escaping
                     if needs_bash_quoting(&decrypted_value) {
-                        println!("{}{}=\"{}\"", prefix, key, escape_for_bash_double_quotes(&decrypted_value));
+                        println!(
+                            "{}{}=\"{}\"",
+                            prefix,
+                            key,
+                            escape_for_bash_double_quotes(&decrypted_value)
+                        );
                     } else {
                         println!("{}{}={}", prefix, key, decrypted_value);
                     }
                 } else {
                     // Simple .env format: minimal escaping
                     if needs_simple_quoting(&decrypted_value) {
-                        println!("{}{}=\"{}\"", prefix, key, escape_for_simple_quotes(&decrypted_value));
+                        println!(
+                            "{}{}=\"{}\"",
+                            prefix,
+                            key,
+                            escape_for_simple_quotes(&decrypted_value)
+                        );
                     } else {
                         println!("{}{}={}", prefix, key, decrypted_value);
                     }
@@ -430,7 +460,7 @@ fn dump_vars(manager: &SecretManager, vars: &HashMap<String, String>, bash: bool
             }
         }
     }
-    
+
     Ok(())
 }
 
@@ -439,7 +469,7 @@ fn needs_simple_quoting(value: &str) -> bool {
     if value.is_empty() {
         return true;
     }
-    
+
     // Simple check for basic .env format
     value.contains(char::is_whitespace)
         || value.contains('=')
@@ -457,23 +487,23 @@ fn needs_bash_quoting(value: &str) -> bool {
     if value.is_empty() {
         return true;
     }
-    
+
     // Bash special characters that require quoting
     const SPECIAL_CHARS: &[char] = &[
-        ' ', '\t', '\n', '\r',  // Whitespace
-        '$', '`', '\\',          // Expansion/escaping
-        '"', '\'',               // Quotes
-        '&', '|', ';',           // Command separators
-        '<', '>',                // Redirection
-        '(', ')', '{', '}',      // Grouping
-        '[', ']',                // Globbing
-        '*', '?',                // Wildcards
-        '!',                     // History expansion (in interactive shells)
-        '~',                     // Tilde expansion
-        '#',                     // Comments
-        '=',                     // Assignment (problematic in some contexts)
+        ' ', '\t', '\n', '\r', // Whitespace
+        '$', '`', '\\', // Expansion/escaping
+        '"', '\'', // Quotes
+        '&', '|', ';', // Command separators
+        '<', '>', // Redirection
+        '(', ')', '{', '}', // Grouping
+        '[', ']', // Globbing
+        '*', '?', // Wildcards
+        '!', // History expansion (in interactive shells)
+        '~', // Tilde expansion
+        '#', // Comments
+        '=', // Assignment (problematic in some contexts)
     ];
-    
+
     value.chars().any(|c| SPECIAL_CHARS.contains(&c))
 }
 
@@ -501,17 +531,17 @@ fn escape_for_bash_double_quotes(value: &str) -> String {
 }
 
 /// Escapes a string for use in GNU Make variable assignment (without quotes)
-/// 
+///
 /// The value will be stored in a Make variable, exported to the environment,
 /// and accessed as $$VAR in shell recipes. We need to escape for Make's
 /// processing during the include and variable expansion.
-/// 
-/// Key insight: When a Make variable is exported and accessed as $$VAR in a recipe,
-/// the value passes through:
+///
+/// Key insight: When a Make variable is exported and accessed as $$VAR in a
+/// recipe, the value passes through:
 /// 1. include/assignment: $$ becomes $ in the variable value
-/// 2. export: the variable value is set in the environment  
+/// 2. export: the variable value is set in the environment
 /// 3. recipe: $$VAR expands to the environment variable value
-/// 
+///
 /// So we use $$ to get a literal $ in the final environment variable.
 fn escape_for_make(value: &str) -> String {
     let mut result = String::with_capacity(value.len());
@@ -531,15 +561,16 @@ fn escape_for_make(value: &str) -> String {
 }
 
 /// Escapes a string for use in GNU Make $(eval ...) statements
-/// 
-/// When using $(eval $(shell dotenvage dump --make-eval)), the value passes through:
+///
+/// When using $(eval $(shell dotenvage dump --make-eval)), the value passes
+/// through:
 /// 1. shell: returns the string with $(eval ...) statements
 /// 2. $(eval ...): processes the assignment, $$ becomes $
 /// 3. Variable is stored and exported
 /// 4. Recipe: $$VAR accesses the environment variable
-/// 
-/// So we use $$$$ which becomes $$ after eval, then $ in the environment variable,
-/// and finally $ in the shell when accessed as $$VAR.
+///
+/// So we use $$$$ which becomes $$ after eval, then $ in the environment
+/// variable, and finally $ in the shell when accessed as $$VAR.
 fn escape_for_make_eval(value: &str) -> String {
     let mut result = String::with_capacity(value.len());
     for c in value.chars() {

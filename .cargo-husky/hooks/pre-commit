@@ -1,0 +1,15 @@
+#!/bin/sh
+
+# Run cargo fmt check before committing (using nightly for rustfmt.toml features)
+echo "Running cargo +nightly fmt --check..."
+cargo +nightly fmt --check
+
+if [ $? -ne 0 ]; then
+    echo ""
+    echo "❌ Code formatting check failed!"
+    echo "Please run 'cargo +nightly fmt' to format your code before committing."
+    exit 1
+fi
+
+echo "✅ Code formatting check passed"
+
