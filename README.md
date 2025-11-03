@@ -54,6 +54,9 @@ dotenvage dump --file .env.local
 # Dump with bash-compliant escaping (for values with $, `, etc.)
 dotenvage dump --bash
 
+# Dump in GNU Make format (VAR := value with Make-safe escaping)
+dotenvage dump --make
+
 # Dump with export prefix for bash sourcing (auto-enables --bash)
 dotenvage dump --export
 
@@ -61,6 +64,16 @@ dotenvage dump --export
 eval "$(dotenvage dump --export)"
 # or
 source <(dotenvage dump --export)
+
+# Use in Makefile (GNU Make)
+# Generate file, include it, and export all variables
+# Access as environment variables in recipes ($$VAR not $(VAR))
+# $(shell dotenvage dump --make > .env.make)
+# include .env.make
+# export
+#
+# In recipes, use: $$DATABASE_URL (shell env var)
+# Not: $(DATABASE_URL) (Make variable expansion)
 ```
 
 ## Library
@@ -218,6 +231,24 @@ PASSWORD="my\$ecret"
 ```
 
 This ensures values with `$`, `` ` ``, `\`, `!`, and other bash special characters are safely preserved when sourced.
+
+### GNU Make Integration
+
+Use `--make` to generate Make-compatible variable assignments for use in Makefiles:
+
+```makefile
+# Makefile example
+$(shell dotenvage dump --make > .env.make)
+include .env.make
+export
+
+.PHONY: deploy
+deploy:
+	@echo "Deploying to $$DATABASE_URL"
+	@echo "Using API key: $$API_KEY"
+```
+
+**Important**: Access variables as `$$VAR` (environment variables) in recipes, not `$(VAR)` (Make variable expansion). The `export` directive makes all variables available to recipe shells as environment variables, where special characters like `$` are properly preserved.
 
 This layering system allows you to:
 
