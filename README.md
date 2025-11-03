@@ -49,7 +49,18 @@ dotenvage list --file .env.local --verbose
 dotenvage dump
 
 # Dump a specific file
-dotenvage dump .env.local
+dotenvage dump --file .env.local
+
+# Dump with bash-compliant escaping (for values with $, `, etc.)
+dotenvage dump --bash
+
+# Dump with export prefix for bash sourcing (auto-enables --bash)
+dotenvage dump --export
+
+# Source in bash (loads all env vars into current shell)
+eval "$(dotenvage dump --export)"
+# or
+source <(dotenvage dump --export)
 ```
 
 ## Library
@@ -171,13 +182,45 @@ SECRET_TOKEN=age[...]  # encrypted, safe to commit!
 ```
 
 Running `dotenvage dump` produces:
+
 ```bash
-DATABASE_URL=postgres://localhost/mydb  # from .env.local
-API_KEY=public_key                       # from .env
-SECRET_TOKEN=decrypted_value             # decrypted from .env.local
+# .env
+API_KEY=public_key
+DATABASE_URL=postgres://localhost/dev
+
+# .env.local
+DATABASE_URL=postgres://localhost/mydb
+SECRET_TOKEN=decrypted_value
 ```
 
+Running `dotenvage dump --export` produces (note: `--export` automatically enables bash-compliant escaping):
+
+```bash
+# .env
+export API_KEY=public_key
+export DATABASE_URL=postgres://localhost/dev
+
+# .env.local
+export DATABASE_URL=postgres://localhost/mydb
+export SECRET_TOKEN=decrypted_value
+```
+
+### Bash-Compliant Escaping
+
+When using `--bash` or `--export` (which auto-enables `--bash`), special bash characters are properly escaped:
+
+```bash
+# Without --bash (simple .env format)
+PASSWORD=my$ecret
+
+# With --bash (bash-safe escaping)
+PASSWORD="my\$ecret"
+```
+
+This ensures values with `$`, `` ` ``, `\`, `!`, and other bash special characters are safely preserved when sourced.
+
 This layering system allows you to:
+
 - **Commit ALL `.env*` files to version control** - secrets are encrypted
 - Share environment-specific configs across the team (`.env.production`, `.env.staging`)
 - Provide user-specific overrides (`.env.local.alice`) without conflicts
