@@ -74,9 +74,10 @@ enum Commands {
     },
     /// List environment variables and their encryption status
     List {
-        /// Environment file to list from
-        #[arg(short, long, default_value = ".env.local")]
-        file: PathBuf,
+        /// Specific file to list from (if not provided, scans all .env* files
+        /// in standard order)
+        #[arg(short, long)]
+        file: Option<PathBuf>,
         /// Show values (decrypted)
         #[arg(short, long)]
         verbose: bool,
@@ -345,14 +346,36 @@ fn get(key: String, file: Option<PathBuf>) -> Result<()> {
     Ok(())
 }
 
-fn list(file: PathBuf, verbose: bool, plain: bool, json: bool) -> Result<()> {
+fn list(file: Option<PathBuf>, verbose: bool, plain: bool, json: bool) -> Result<()> {
     let manager = SecretManager::new().context("Failed to load encryption key")?;
-    if !file.exists() {
-        anyhow::bail!("File not found: {}", file.display());
-    }
-    let content = std::fs::read_to_string(&file)
-        .with_context(|| format!("Failed to read {}", file.display()))?;
-    let vars = parse_env_file(&content)?;
+
+    // Collect variables from either a specific file or all .env* files
+    let vars = if let Some(file_path) = file {
+        // Single file mode
+        if !file_path.exists() {
+            anyhow::bail!("File not found: {}", file_path.display());
+        }
+        let content = std::fs::read_to_string(&file_path)
+            .with_context(|| format!("Failed to read {}", file_path.display()))?;
+        parse_env_file(&content)?
+    } else {
+        // Scan all .env* files in standard order
+        let loader = dotenvage::EnvLoader::with_manager(manager.clone());
+        let paths = loader.resolve_env_paths(Path::new("."));
+        let mut all_vars = HashMap::new();
+
+        for path in paths {
+            if path.exists() {
+                let content = std::fs::read_to_string(&path)
+                    .with_context(|| format!("Failed to read {}", path.display()))?;
+                let file_vars = parse_env_file(&content)?;
+                // Later files override earlier files
+                all_vars.extend(file_vars);
+            }
+        }
+        all_vars
+    };
+
     let mut keys: Vec<_> = vars.keys().collect();
     keys.sort();
 
@@ -379,9 +402,6 @@ fn list(file: PathBuf, verbose: bool, plain: bool, json: bool) -> Result<()> {
         println!("{}", serde_json::to_string_pretty(&output)?);
     } else {
         // Text output (plain or with icons)
-        if !plain && !json {
-            println!("Environment variables in {}:\n", file.display());
-        }
         for key in keys {
             let value = vars.get(key).unwrap();
             let is_encrypted = SecretManager::is_encrypted(value);
