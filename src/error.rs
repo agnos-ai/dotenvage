@@ -49,4 +49,8 @@ pub enum SecretsError {
         /// The name of the variable that wasn't found.
         key: String,
     },
+
+    /// Failed to write output.
+    #[error("write failed: {0}")]
+    WriteFailed(String),
 }
