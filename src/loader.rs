@@ -539,6 +539,87 @@ impl EnvLoader {
         self.get_var(key).unwrap_or_else(|_| default.to_string())
     }
 
+    /// Gets all variable names from all `.env*` files that would be loaded.
+    ///
+    /// This method uses the standard file-loading algorithm (via
+    /// [`resolve_env_paths`](Self::resolve_env_paths)) to determine which
+    /// files would be loaded, then collects all unique variable names across
+    /// those files.
+    ///
+    /// Files are processed in the same order as [`load()`](Self::load), but
+    /// this method only collects the variable names without loading them into
+    /// the environment.
+    ///
+    /// # Returns
+    ///
+    /// A vector of unique variable names found across all `.env*` files that
+    /// would be loaded. If a variable appears in multiple files, it only
+    /// appears once in the result.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if any file cannot be read or parsed. Unlike
+    /// [`load()`](Self::load), this method fails fast on the first error
+    /// encountered.
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use dotenvage::EnvLoader;
+    ///
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let loader = EnvLoader::new()?;
+    /// let variable_names = loader.get_all_variable_names()?;
+    /// println!("Found {} variables", variable_names.len());
+    /// for name in &variable_names {
+    ///     println!("  - {}", name);
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn get_all_variable_names(&self) -> SecretsResult<Vec<String>> {
+        self.get_all_variable_names_from_dir(".")
+    }
+
+    /// Gets all variable names from all `.env*` files in a specific directory.
+    ///
+    /// Like [`get_all_variable_names()`](Self::get_all_variable_names), but
+    /// loads from a specific directory instead of the current directory.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if any file cannot be read or parsed.
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use dotenvage::EnvLoader;
+    ///
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let loader = EnvLoader::new()?;
+    /// let variable_names = loader.get_all_variable_names_from_dir("./config")?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn get_all_variable_names_from_dir(
+        &self,
+        dir: impl AsRef<Path>,
+    ) -> SecretsResult<Vec<String>> {
+        use std::collections::HashSet;
+
+        let dir = dir.as_ref();
+        let mut seen = HashSet::new();
+
+        for path in self.resolve_env_paths(dir) {
+            if path.exists() {
+                let vars = self.load_env_file(&path)?;
+                seen.extend(vars.keys().cloned());
+            }
+        }
+
+        Ok(seen.into_iter().collect())
+    }
+
     /// Resolves the `<ENV>` placeholder for environment-specific file names.
     ///
     /// The environment name is resolved in the following order:
