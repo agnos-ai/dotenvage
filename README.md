@@ -42,17 +42,23 @@ dotenvage set FLY_API_TOKEN=abc123 --file .env.local
 # Get a decrypted value (searches .env then .env.local)
 dotenvage get FLY_API_TOKEN
 
-# List keys (show lock icon; verbose shows decrypted values)
-dotenvage list --file .env.local --verbose
+# List all variables from all .env* files (merged in standard order)
+dotenvage list
+
+# List with lock icons (🔒 = encrypted)
+dotenvage list --verbose
 
 # List in plain ASCII format (no icons, just variable names)
-dotenvage list --file .env.local --plain
+dotenvage list --plain
 
 # List in JSON format
-dotenvage list --file .env.local --json
+dotenvage list --json
 
 # List in JSON with values
-dotenvage list --file .env.local --json --verbose
+dotenvage list --json --verbose
+
+# List from a specific file only
+dotenvage list --file .env.local
 
 # Dump all decrypted env vars (merges all .env* files with layering)
 dotenvage dump
