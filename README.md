@@ -266,8 +266,9 @@ Keys are discovered in this priority order:
 
 1. **`DOTENVAGE_AGE_KEY`** env var (full identity string)
 2. **`AGE_KEY`** env var (full identity string)
-3. **`AGE_KEY_NAME`** from .env ? key file at `$XDG_STATE_HOME/{AGE_KEY_NAME}.key`
-4. **Default**: `~/.local/state/{CARGO_PKG_NAME}/dotenvage.key`
+3. **`EKG_AGE_KEY`** env var (for EKG project compatibility)
+4. **`AGE_KEY_NAME`** from .env → key file at `$XDG_STATE_HOME/{AGE_KEY_NAME}.key`
+5. **Default**: `~/.local/state/{CARGO_PKG_NAME}/dotenvage.key`
 
 ### Project-Specific Keys
 
@@ -288,7 +289,7 @@ Key stored at: `~/.local/state/myproject/myapp.key`
 
 ### CI/CD
 
-Set `DOTENVAGE_AGE_KEY` or `AGE_KEY` in CI secrets:
+Set `DOTENVAGE_AGE_KEY`, `AGE_KEY`, or `EKG_AGE_KEY` in CI secrets:
 
 ```yaml
 env:
