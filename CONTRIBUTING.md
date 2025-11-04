@@ -2,11 +2,25 @@
 
 Thank you for your interest in contributing to dotenvage! This document provides guidelines and instructions for setting up your development environment.
 
+## Security-First Project
+
+⚠️ **Important**: dotenvage is a **security and cryptography tool** that handles sensitive data (encrypted secrets, API keys, passwords). This requires higher standards than typical projects:
+
+- **All commits must be signed** - No exceptions for authenticity
+- **Zero tolerance for warnings** - Clippy must pass with `-D warnings`
+- **Detailed commit history** - For audit trails and AI agent analysis
+- **Linear history only** - No merge commits, always rebase
+- **Comprehensive testing** - Security-critical code needs thorough tests
+- **Code review required** - All changes must be reviewed before merge
+
+These strict requirements protect users who trust us with their secrets.
+
 ## Prerequisites
 
 - [Rust](https://rustup.rs) (stable and nightly toolchains)
-- Git
+- Git with commit signing configured (GPG or SSH)
 - Basic familiarity with Rust and cryptography concepts
+- Understanding of secure coding practices
 
 ## Development Setup
 
@@ -139,7 +153,9 @@ See GitHub's guide: [Signing commits](https://docs.github.com/en/authentication/
 
 ### Conventional Commits
 
-We follow [Conventional Commits](https://www.conventionalcommits.org/):
+We follow [Conventional Commits](https://www.conventionalcommits.org/) with **detailed multi-line commit messages**.
+
+Commit types:
 
 - `feat:` - New feature
 - `fix:` - Bug fix
@@ -148,13 +164,46 @@ We follow [Conventional Commits](https://www.conventionalcommits.org/):
 - `test:` - Adding or updating tests
 - `chore:` - Maintenance tasks
 
+### Detailed Commit Messages
+
+**Use multiple `-m` flags** to create detailed commit messages with bullet points:
+
+```bash
+git commit \
+  -m "feat: add --json output format to list command" \
+  -m "- Add --json flag to list command arguments" \
+  -m "- Serialize variable data as JSON with encryption status" \
+  -m "- Include decrypted values when --verbose is combined with --json" \
+  -m "- Add serde_json dependency to Cargo.toml" \
+  -m "- Update README with JSON output examples"
+```
+
+**Why detailed commits matter:**
+
+1. **Better changelogs**: CI automatically generates release notes from commits
+2. **AI agent context**: Subsequent AI agents can understand changes by reading `git log`
+3. **Code archaeology**: Makes it easier to understand why changes were made
+4. **Review clarity**: Reviewers can see exactly what changed and why
+
+The **first `-m`** is the conventional commit title (max 72 chars).  
+**Additional `-m` flags** are bullet points explaining what was done.
+
 Examples:
 
-```text
-feat: add --json output format to list command
-fix: handle empty .env files correctly
-docs: update README with new examples
-refactor: extract helper function to reduce nesting
+```bash
+# Good: Detailed commit
+git commit \
+  -m "refactor: extract helper function to reduce nesting" \
+  -m "- Extract print_list_entry() function from list command" \
+  -m "- Use pattern matching on (verbose, plain) tuple" \
+  -m "- Reduces nesting from 6 to 4 levels" \
+  -m "- Fixes clippy::excessive_nesting warnings"
+
+# Also good: Simple change needs less detail
+git commit -m "docs: fix typo in README"
+
+# Bad: Vague, no detail
+git commit -m "fix stuff"
 ```
 
 ## Testing
@@ -175,12 +224,35 @@ When adding new public APIs:
 
 ## Pull Request Process
 
+### Branching and History
+
+We maintain a **strictly linear commit history** on `main`:
+
+- ✅ **No merge commits** - PRs are rebased, not merged
+- ✅ **Each commit should be atomic and well-documented**
+- ✅ **All commits must pass tests and checks individually**
+
+### Workflow
+
 1. Fork the repository
 2. Create a feature branch from `main`
-3. Make your changes
-4. Ensure all tests pass and hooks succeed
-5. Push to your fork
-6. Submit a pull request
+3. Make your changes with detailed commits
+4. Keep your branch up to date by rebasing on `main`:
+   ```bash
+   git fetch upstream
+   git rebase upstream/main
+   ```
+5. Ensure all tests pass and hooks succeed
+6. Push to your fork (use `--force-with-lease` after rebasing)
+7. Submit a pull request
+
+### Merge Strategy
+
+PRs will be merged using **rebase and merge** (not squash, not merge commit):
+
+- Your individual commits will be preserved in `main`
+- This maintains detailed history for changelog generation and AI agent context
+- Make sure each commit is clean and well-documented before submitting
 
 ### PR Checklist
 
