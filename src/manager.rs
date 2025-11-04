@@ -91,6 +91,10 @@ impl SecretManager {
     /// save this key using [`save_key`](Self::save_key) or
     /// [`save_key_to_default`](Self::save_key_to_default).
     ///
+    /// # Errors
+    ///
+    /// This function always succeeds and returns `Ok`.
+    ///
     /// # Examples
     ///
     /// ```rust
@@ -376,6 +380,11 @@ impl SecretManager {
     ///    environment
     /// 5. Default key file: `~/.local/state/{CARGO_PKG_NAME or
     ///    "dotenvage"}/dotenvage.key`
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if no key can be found in any of the standard locations
+    /// or if the key file/string is invalid.
     pub fn load_key() -> SecretsResult<Self> {
         // FIRST: Try to discover AGE_KEY_NAME from .env files before doing anything
         // else This allows project-specific key discovery from .env
