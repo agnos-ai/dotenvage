@@ -45,7 +45,7 @@ dotenvage get FLY_API_TOKEN
 # List keys (show lock icon; verbose shows decrypted values)
 dotenvage list --file .env.local --verbose
 
-# List in plain ASCII format (no Unicode icons)
+# List in plain ASCII format (no icons, just variable names)
 dotenvage list --file .env.local --plain
 
 # List in JSON format
