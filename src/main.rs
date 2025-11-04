@@ -383,6 +383,10 @@ fn list(file: Option<PathBuf>, verbose: bool, plain: bool, json: bool) -> Result
         // JSON output format
         let mut output = HashMap::new();
         for key in keys {
+            // Filter out AGE key variables - we don't expose these secrets
+            if is_age_key_variable(key) {
+                continue;
+            }
             let value = vars.get(key).unwrap();
             let is_encrypted = SecretManager::is_encrypted(value);
             let mut entry = HashMap::new();
@@ -403,6 +407,10 @@ fn list(file: Option<PathBuf>, verbose: bool, plain: bool, json: bool) -> Result
     } else {
         // Text output (plain or with icons)
         for key in keys {
+            // Filter out AGE key variables - we don't expose these secrets
+            if is_age_key_variable(key) {
+                continue;
+            }
             let value = vars.get(key).unwrap();
             let is_encrypted = SecretManager::is_encrypted(value);
             print_list_entry(&manager, key, value, is_encrypted, verbose, plain)?;
