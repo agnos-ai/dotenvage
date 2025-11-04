@@ -620,6 +620,136 @@ impl EnvLoader {
         Ok(seen.into_iter().collect())
     }
 
+    /// Write all merged .env variables in KEY=VALUE format to a writer.
+    ///
+    /// Automatically filters out AGE key variables (`DOTENVAGE_AGE_KEY`,
+    /// `AGE_KEY`, `EKG_AGE_KEY`, `AGE_KEY_NAME`, and any variable ending
+    /// with `_AGE_KEY_NAME`).
+    ///
+    /// This function:
+    /// 1. Loads all `.env*` files in standard order
+    /// 2. Merges variables (later files override earlier ones)
+    /// 3. Decrypts encrypted values
+    /// 4. Filters out AGE key variables
+    /// 5. Writes in simple KEY=VALUE format (quotes added when needed)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Writing to the writer fails
+    /// - .env files cannot be loaded
+    /// - Decryption fails for any encrypted value
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use std::io::Cursor;
+    ///
+    /// use dotenvage::EnvLoader;
+    ///
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let loader = EnvLoader::new()?;
+    /// let mut buffer = Vec::new();
+    /// loader.dump_to_writer(&mut buffer)?;
+    /// let output = String::from_utf8(buffer)?;
+    /// println!("{}", output);
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn dump_to_writer<W: std::io::Write>(&self, writer: W) -> SecretsResult<()> {
+        self.dump_to_writer_from_dir(".", writer)
+    }
+
+    /// Write all merged .env variables in KEY=VALUE format to a writer from a
+    /// specific directory.
+    ///
+    /// Same as [`dump_to_writer`](Self::dump_to_writer) but loads from a
+    /// specific directory.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Writing to the writer fails
+    /// - .env files cannot be loaded
+    /// - Decryption fails for any encrypted value
+    pub fn dump_to_writer_from_dir<W: std::io::Write>(
+        &self,
+        dir: impl AsRef<Path>,
+        mut writer: W,
+    ) -> SecretsResult<()> {
+        let dir = dir.as_ref();
+
+        // Load and merge all .env files in standard order
+        let mut merged_vars = HashMap::new();
+        for path in self.resolve_env_paths(dir) {
+            if path.exists() {
+                let vars = self.load_env_file(&path)?;
+                merged_vars.extend(vars);
+            }
+        }
+
+        // Sort keys for consistent output
+        let mut keys: Vec<_> = merged_vars.keys().cloned().collect();
+        keys.sort();
+
+        // Write each variable (filtering AGE keys and decrypting)
+        for key in keys {
+            // Filter out AGE key variables
+            if Self::is_age_key_variable(&key) {
+                continue;
+            }
+
+            if let Some(value) = merged_vars.get(&key) {
+                let decrypted_value = self.manager.decrypt_value(value)?;
+
+                // Write in KEY=VALUE format (add quotes if needed)
+                if Self::needs_quoting(&decrypted_value) {
+                    writeln!(
+                        writer,
+                        "{}=\"{}\"",
+                        key,
+                        Self::escape_value(&decrypted_value)
+                    )
+                    .map_err(|e| SecretsError::WriteFailed(e.to_string()))?;
+                } else {
+                    writeln!(writer, "{}={}", key, decrypted_value)
+                        .map_err(|e| SecretsError::WriteFailed(e.to_string()))?;
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Check if a variable name is an AGE key variable that should be filtered.
+    fn is_age_key_variable(key: &str) -> bool {
+        let key_upper = key.to_uppercase();
+        matches!(
+            key_upper.as_str(),
+            "DOTENVAGE_AGE_KEY" | "AGE_KEY" | "EKG_AGE_KEY" | "AGE_KEY_NAME"
+        ) || key_upper.ends_with("_AGE_KEY_NAME")
+    }
+
+    /// Check if a value needs quoting in .env format.
+    fn needs_quoting(value: &str) -> bool {
+        value.is_empty()
+            || value.contains(char::is_whitespace)
+            || value.contains('"')
+            || value.contains('\'')
+            || value.contains('=')
+            || value.contains('#')
+    }
+
+    /// Escape a value for use in double quotes.
+    fn escape_value(value: &str) -> String {
+        value
+            .replace('\\', "\\\\")
+            .replace('"', "\\\"")
+            .replace('\n', "\\n")
+            .replace('\r', "\\r")
+            .replace('\t', "\\t")
+    }
+
     /// Resolves the `<ENV>` placeholder for environment-specific file names.
     ///
     /// The environment name is resolved in the following order:

@@ -527,6 +527,11 @@ fn dump_vars(
     keys.sort();
 
     for key in keys {
+        // Filter out AGE key variables - we don't propagate these secrets
+        if is_age_key_variable(&key) {
+            continue;
+        }
+
         if let Some(value) = vars.get(&key) {
             let decrypted_value = manager
                 .decrypt_value(value)
@@ -537,6 +542,15 @@ fn dump_vars(
     }
 
     Ok(())
+}
+
+/// Check if a variable name is an AGE key variable that should be filtered.
+fn is_age_key_variable(key: &str) -> bool {
+    let key_upper = key.to_uppercase();
+    matches!(
+        key_upper.as_str(),
+        "DOTENVAGE_AGE_KEY" | "AGE_KEY" | "EKG_AGE_KEY" | "AGE_KEY_NAME"
+    ) || key_upper.ends_with("_AGE_KEY_NAME")
 }
 
 /// Output a single variable in the appropriate format
