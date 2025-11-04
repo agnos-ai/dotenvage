@@ -146,7 +146,7 @@ jobs:
         run: |
           CARGO_VERSION="${{ steps.cargo_version.outputs.version }}"
           TAG_VERSION="${{ steps.latest_tag.outputs.version }}"
-          
+
           if [ "$CARGO_VERSION" != "$TAG_VERSION" ]; then
             echo "changed=true" >> $GITHUB_OUTPUT
             echo "version=$CARGO_VERSION" >> $GITHUB_OUTPUT
@@ -169,55 +169,48 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
-      
+
       - name: Configure Git
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-      
-      - name: Generate Changelog
+
+      - name: Generate Changelog with Cocogitto
         id: changelog
         run: |
           VERSION="${{ needs.version-check.outputs.new_version }}"
-          
-          # Generate changelog from conventional commits since last tag
-          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
-          if [ -z "$LAST_TAG" ]; then
-            # First release - get all commits
-            git log --pretty=format:"* %s (%h)" | grep -v "^* chore" | grep -v "^* test" > RELEASE_CHANGELOG.md || echo "## Changes\n\nInitial release." > RELEASE_CHANGELOG.md
-          else
-            # Get commits since last tag
-            git log "$LAST_TAG"..HEAD --pretty=format:"* %s (%h)" | grep -v "^* chore" | grep -v "^* test" > RELEASE_CHANGELOG.md || echo "## Changes\n\nSee commit history for details." > RELEASE_CHANGELOG.md
-          fi
-          
+
+          # Generate changelog for current version only using cocogitto
+          cog changelog --at v${VERSION} > CHANGELOG.md
+
           echo "Changelog generated for v$VERSION"
-          cat RELEASE_CHANGELOG.md
-      
+          cat CHANGELOG.md
+
       - name: Create and Push Tag
         run: |
           VERSION="${{ needs.version-check.outputs.new_version }}"
           git tag -a "v$VERSION" -m "Release v$VERSION"
           git push origin "v$VERSION"
           echo "✅ Created and pushed tag v$VERSION"
-      
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: v${{ needs.version-check.outputs.new_version }}
           name: v${{ needs.version-check.outputs.new_version }}
-          body_path: RELEASE_CHANGELOG.md
+          body_path: CHANGELOG.md
           draft: false
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      
+
       - uses: dtolnay/rust-toolchain@stable
-      
+
       - name: Publish to crates.io
         run: cargo publish --allow-dirty --token ${{ secrets.CRATES_IO_TOKEN }}
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
-      
+
       - name: Release Summary
         run: |
           echo "🎉 Successfully released v${{ needs.version-check.outputs.new_version }}"
