@@ -405,27 +405,53 @@ fn list(file: Option<PathBuf>, verbose: bool, plain: bool, json: bool) -> Result
         for key in keys {
             let value = vars.get(key).unwrap();
             let is_encrypted = SecretManager::is_encrypted(value);
+            print_list_entry(&manager, key, value, is_encrypted, verbose, plain)?;
+        }
+    }
+    Ok(())
+}
 
-            if verbose {
-                let display_value = if is_encrypted {
-                    manager
-                        .decrypt_value(value)
-                        .unwrap_or_else(|_| "<decryption failed>".to_string())
-                } else {
-                    value.clone()
-                };
-                if plain {
-                    println!("{} = {}", key, display_value);
-                } else {
-                    let lock_icon = if is_encrypted { "🔒" } else { "  " };
-                    println!("{} {} = {}", lock_icon, key, display_value);
-                }
-            } else if plain {
-                println!("{}", key);
+/// Helper function to print a single list entry
+fn print_list_entry(
+    manager: &SecretManager,
+    key: &str,
+    value: &str,
+    is_encrypted: bool,
+    verbose: bool,
+    plain: bool,
+) -> Result<()> {
+    let lock_icon = if is_encrypted { "🔒" } else { "  " };
+
+    match (verbose, plain) {
+        (true, true) => {
+            // Plain verbose: KEY = value
+            let display_value = if is_encrypted {
+                manager
+                    .decrypt_value(value)
+                    .unwrap_or_else(|_| "<decryption failed>".to_string())
             } else {
-                let lock_icon = if is_encrypted { "🔒" } else { "  " };
-                println!("{} {}", lock_icon, key);
-            }
+                value.to_string()
+            };
+            println!("{} = {}", key, display_value);
+        }
+        (true, false) => {
+            // Icon verbose: 🔒 KEY = value
+            let display_value = if is_encrypted {
+                manager
+                    .decrypt_value(value)
+                    .unwrap_or_else(|_| "<decryption failed>".to_string())
+            } else {
+                value.to_string()
+            };
+            println!("{} {} = {}", lock_icon, key, display_value);
+        }
+        (false, true) => {
+            // Plain: KEY
+            println!("{}", key);
+        }
+        (false, false) => {
+            // Icon: 🔒 KEY
+            println!("{} {}", lock_icon, key);
         }
     }
     Ok(())
