@@ -6,3 +6,6 @@ too-many-arguments-threshold = 6
 type-complexity-threshold = 250
 disallowed-names = ["foo", "bar", "baz", "qux", "i", "n"]
 
+# Documentation requirements
+# Enforce that all public items have documentation
+# This works in conjunction with #![warn(missing_docs)] in lib.rs

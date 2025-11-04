@@ -7,5 +7,16 @@
     "rust-analyzer.rustfmt.extraArgs": [
         "+nightly"
     ],
-    "rust-analyzer.check.command": "clippy"
+    "rust-analyzer.check.command": "clippy",
+    "rust-analyzer.check.extraArgs": [
+        "--",
+        "-W",
+        "missing_docs",
+        "-W",
+        "clippy::missing_errors_doc",
+        "-W",
+        "clippy::missing_panics_doc",
+        "-W",
+        "clippy::missing_safety_doc"
+    ]
 }
