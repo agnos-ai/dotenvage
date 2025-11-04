@@ -556,6 +556,10 @@ impl EnvLoader {
     /// would be loaded. If a variable appears in multiple files, it only
     /// appears once in the result.
     ///
+    /// **Note:** AGE key variables (`DOTENVAGE_AGE_KEY`, `AGE_KEY`,
+    /// `EKG_AGE_KEY`, `AGE_KEY_NAME`, and any variable ending with
+    /// `_AGE_KEY_NAME`) are filtered out for security reasons.
+    ///
     /// # Errors
     ///
     /// Returns an error if any file cannot be read or parsed. Unlike
@@ -586,6 +590,8 @@ impl EnvLoader {
     /// Like [`get_all_variable_names()`](Self::get_all_variable_names), but
     /// loads from a specific directory instead of the current directory.
     ///
+    /// **Note:** AGE key variables are filtered out for security reasons.
+    ///
     /// # Errors
     ///
     /// Returns an error if any file cannot be read or parsed.
@@ -613,7 +619,12 @@ impl EnvLoader {
         for path in self.resolve_env_paths(dir) {
             if path.exists() {
                 let vars = self.load_env_file(&path)?;
-                seen.extend(vars.keys().cloned());
+                // Filter out AGE key variables - we don't expose these secrets
+                seen.extend(
+                    vars.keys()
+                        .filter(|k| !Self::is_age_key_variable(k))
+                        .cloned(),
+                );
             }
         }
 
