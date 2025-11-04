@@ -2,6 +2,18 @@
 
 This document contains information for repository maintainers.
 
+## Security-Critical Project
+
+⚠️ **Important**: dotenvage is a security and cryptography tool. Users trust us with their encrypted secrets, API keys, and passwords. This demands:
+
+- **Strict review standards** - Security implications must be considered for every change
+- **Mandatory signed commits** - Verify authenticity of all code changes
+- **Linear history** - Makes auditing and rollback simpler
+- **Comprehensive CI** - Every commit must pass all checks
+- **Zero-warning policy** - Clippy warnings can hide real issues
+
+These requirements are non-negotiable for a security tool.
+
 ## GitHub Repository Settings
 
 ### Enforce Commit Signing
@@ -23,20 +35,23 @@ gh api repos/agnos-ai/dotenvage/branches/main/protection
 # https://github.com/agnos-ai/dotenvage/settings/branch_protection_rules
 ```
 
-### Other Recommended Branch Protection Rules
+### Required Branch Protection Rules
 
-For the `main` branch, also enable:
+**For a security-critical project, ALL of these must be enabled** on the `main` branch:
 
-- [ ] **Require a pull request before merging**
-  - Require approvals: 1
+- [x] **Require a pull request before merging** ⚠️ REQUIRED
+  - Require approvals: 1 minimum
   - Dismiss stale pull request approvals when new commits are pushed
-- [ ] **Require status checks to pass before merging**
+- [x] **Require status checks to pass before merging** ⚠️ REQUIRED
   - Require branches to be up to date before merging
   - Status checks: `fmt`, `clippy`, `build`, `test`
-- [ ] **Require conversation resolution before merging**
-- [ ] **Require signed commits** ✓
-- [ ] **Require linear history**
-- [ ] **Do not allow bypassing the above settings**
+- [x] **Require conversation resolution before merging** ⚠️ REQUIRED
+- [x] **Require signed commits** ⚠️ REQUIRED
+- [x] **Require linear history** ⚠️ REQUIRED
+- [x] **Do not allow bypassing the above settings** ⚠️ REQUIRED
+- [x] **Restrict who can push to matching branches** - Maintainers only
+
+**Why so strict?** This is a security tool. A compromised commit could leak users' encrypted secrets. Every safeguard matters.
 
 ### Secrets Configuration
 
@@ -58,9 +73,33 @@ Releases are automated via GitHub Actions when the version in `Cargo.toml` chang
    - Create GitHub release
    - Publish to crates.io
 
-## Security
+## Security Review Guidelines
+
+### Threat Model
+
+dotenvage handles:
+
+- Encrypted secrets (passwords, API keys, tokens)
+- Cryptographic keys (age/X25519 identities)
+- Environment variables that may contain sensitive data
+
+### Review Checklist for Security-Sensitive Changes
+
+When reviewing PRs that touch cryptography, key handling, or file I/O:
+
+- [ ] **Cryptography changes**: Verify age library usage is correct
+- [ ] **Key handling**: Ensure keys are never logged or leaked
+- [ ] **File permissions**: Check that key files have proper permissions (0600)
+- [ ] **Input validation**: Validate all user inputs and file contents
+- [ ] **Error messages**: Don't leak sensitive info in error messages
+- [ ] **Dependencies**: Audit new dependencies for security issues
+- [ ] **Tests**: Require tests for all security-critical code paths
+
+### Security Best Practices
 
 - All maintainer commits must be signed
-- Review all PRs for security implications
-- Never commit secrets or keys
-- Use age encryption for sensitive values in .env files
+- Review all PRs for security implications - consider threat models
+- Never commit secrets, keys, or plaintext sensitive data
+- Use age encryption for any sensitive values in test fixtures
+- Report security vulnerabilities privately (not via public issues)
+- Keep dependencies updated, especially `age`, `base64`, and crypto-related crates
