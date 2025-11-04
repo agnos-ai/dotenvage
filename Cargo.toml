@@ -29,6 +29,7 @@ dotenvy = "0.15"
 clap = { version = "4.5.51", features = ["derive"] }
 dirs = "6.0.0"
 tempfile = "3.15"
+serde_json = "1.0"
 
 [dev-dependencies]
 serial_test = "3.2.0"

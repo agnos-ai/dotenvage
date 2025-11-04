@@ -80,6 +80,12 @@ enum Commands {
         /// Show values (decrypted)
         #[arg(short, long)]
         verbose: bool,
+        /// Plain ASCII output (no Unicode icons)
+        #[arg(short, long)]
+        plain: bool,
+        /// JSON output format
+        #[arg(short, long)]
+        json: bool,
     },
     /// Dump environment file to stdout with all values decrypted
     Dump {
@@ -139,7 +145,12 @@ fn main() -> Result<()> {
         Commands::Edit { file } => edit(file),
         Commands::Set { pair, file } => set(pair, file),
         Commands::Get { key, file } => get(key, file),
-        Commands::List { file, verbose } => list(file, verbose),
+        Commands::List {
+            file,
+            verbose,
+            plain,
+            json,
+        } => list(file, verbose, plain, json),
         Commands::Dump {
             file,
             bash,
@@ -334,7 +345,7 @@ fn get(key: String, file: Option<PathBuf>) -> Result<()> {
     Ok(())
 }
 
-fn list(file: PathBuf, verbose: bool) -> Result<()> {
+fn list(file: PathBuf, verbose: bool, plain: bool, json: bool) -> Result<()> {
     let manager = SecretManager::new().context("Failed to load encryption key")?;
     if !file.exists() {
         anyhow::bail!("File not found: {}", file.display());
@@ -342,24 +353,72 @@ fn list(file: PathBuf, verbose: bool) -> Result<()> {
     let content = std::fs::read_to_string(&file)
         .with_context(|| format!("Failed to read {}", file.display()))?;
     let vars = parse_env_file(&content)?;
-    println!("Environment variables in {}:\n", file.display());
     let mut keys: Vec<_> = vars.keys().collect();
     keys.sort();
-    for key in keys {
-        let value = vars.get(key).unwrap();
-        let is_encrypted = SecretManager::is_encrypted(value);
-        let lock_icon = if is_encrypted { "🔒" } else { "  " };
-        if verbose {
-            let display_value = if is_encrypted {
-                manager
-                    .decrypt_value(value)
-                    .unwrap_or_else(|_| "<decryption failed>".to_string())
+
+    if json {
+        // JSON output format
+        let mut output = HashMap::new();
+        for key in keys {
+            let value = vars.get(key).unwrap();
+            let is_encrypted = SecretManager::is_encrypted(value);
+            let mut entry = HashMap::new();
+            entry.insert("encrypted", is_encrypted.to_string());
+            if verbose {
+                let display_value = if is_encrypted {
+                    manager
+                        .decrypt_value(value)
+                        .unwrap_or_else(|_| "<decryption failed>".to_string())
+                } else {
+                    value.clone()
+                };
+                entry.insert("value", display_value);
+            }
+            output.insert(key, entry);
+        }
+        println!("{}", serde_json::to_string_pretty(&output)?);
+    } else {
+        // Text output (plain or with icons)
+        if !plain && !json {
+            println!("Environment variables in {}:\n", file.display());
+        }
+        for key in keys {
+            let value = vars.get(key).unwrap();
+            let is_encrypted = SecretManager::is_encrypted(value);
+            let lock_icon = if plain {
+                if is_encrypted { "[encrypted]" } else { "" }
+            } else if is_encrypted {
+                "🔒"
             } else {
-                value.clone()
+                "  "
             };
-            println!("{} {} = {}", lock_icon, key, display_value);
-        } else {
-            println!("{} {}", lock_icon, key);
+
+            if verbose {
+                let display_value = if is_encrypted {
+                    manager
+                        .decrypt_value(value)
+                        .unwrap_or_else(|_| "<decryption failed>".to_string())
+                } else {
+                    value.clone()
+                };
+                if plain {
+                    if is_encrypted {
+                        println!("{} {} = {}", lock_icon, key, display_value);
+                    } else {
+                        println!("{} = {}", key, display_value);
+                    }
+                } else {
+                    println!("{} {} = {}", lock_icon, key, display_value);
+                }
+            } else if plain {
+                if is_encrypted {
+                    println!("{} {}", lock_icon, key);
+                } else {
+                    println!("{}", key);
+                }
+            } else {
+                println!("{} {}", lock_icon, key);
+            }
         }
     }
     Ok(())
