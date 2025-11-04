@@ -141,11 +141,13 @@ You only need to create the files you use - the loader checks which exist.
 
 ### Placeholders
 
-- **`<ENV>`**: From `DOTENVAGE_ENV`, `EKG_ENV`, `VERCEL_ENV`, `NODE_ENV`, or defaults to `local`
-- **`<OS>`**: From `DOTENVAGE_OS`, `EKG_OS`, `CARGO_CFG_TARGET_OS`, `TARGET`, `RUNNER_OS`, or runtime detection
-- **`<ARCH>`**: From `DOTENVAGE_ARCH`, `EKG_ARCH`, `CARGO_CFG_TARGET_ARCH`, `TARGET`, `TARGETARCH`, `TARGETPLATFORM`, or `RUNNER_ARCH`
-- **`<USER>`**: From `DOTENVAGE_USER`, `EKG_USER`, or system username
-- **`<PR_NUMBER>`**: Auto-detected from GitHub Actions `GITHUB_REF`
+| Placeholder   | Environment Variables (priority order)                                                                                 | Default / Notes              |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
+| `<ENV>`       | `DOTENVAGE_ENV`, `EKG_ENV`, `VERCEL_ENV`, `NODE_ENV`                                                                   | Defaults to `local`          |
+| `<OS>`        | `DOTENVAGE_OS`, `EKG_OS`, `CARGO_CFG_TARGET_OS`, `TARGET`, `RUNNER_OS`                                                 | Runtime detection if not set |
+| `<ARCH>`      | `DOTENVAGE_ARCH`, `EKG_ARCH`, `CARGO_CFG_TARGET_ARCH`, `TARGET`, `TARGETARCH`, `TARGETPLATFORM`, `RUNNER_ARCH`         | None if not detected         |
+| `<USER>`      | `DOTENVAGE_USER`, `EKG_USER`, `GITHUB_ACTOR`, `GITHUB_TRIGGERING_ACTOR`, `GITHUB_REPOSITORY_OWNER`, `USER`, `USERNAME` | System username              |
+| `<PR_NUMBER>` | `PR_NUMBER`, `GITHUB_REF`                                                                                              | GitHub Actions only          |
 
 ### Supported Operating Systems
 
