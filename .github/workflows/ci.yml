@@ -175,6 +175,9 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
+      - name: Install Cocogitto
+        uses: cocogitto/cocogitto-action@v3
+
       - name: Generate Changelog with Cocogitto
         id: changelog
         run: |
