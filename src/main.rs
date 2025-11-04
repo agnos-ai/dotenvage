@@ -80,7 +80,7 @@ enum Commands {
         /// Show values (decrypted)
         #[arg(short, long)]
         verbose: bool,
-        /// Plain ASCII output (no Unicode icons)
+        /// Plain ASCII output (no icons, just variable names)
         #[arg(short, long)]
         plain: bool,
         /// JSON output format
@@ -385,13 +385,6 @@ fn list(file: PathBuf, verbose: bool, plain: bool, json: bool) -> Result<()> {
         for key in keys {
             let value = vars.get(key).unwrap();
             let is_encrypted = SecretManager::is_encrypted(value);
-            let lock_icon = if plain {
-                if is_encrypted { "[encrypted]" } else { "" }
-            } else if is_encrypted {
-                "🔒"
-            } else {
-                "  "
-            };
 
             if verbose {
                 let display_value = if is_encrypted {
@@ -402,21 +395,15 @@ fn list(file: PathBuf, verbose: bool, plain: bool, json: bool) -> Result<()> {
                     value.clone()
                 };
                 if plain {
-                    if is_encrypted {
-                        println!("{} {} = {}", lock_icon, key, display_value);
-                    } else {
-                        println!("{} = {}", key, display_value);
-                    }
+                    println!("{} = {}", key, display_value);
                 } else {
+                    let lock_icon = if is_encrypted { "🔒" } else { "  " };
                     println!("{} {} = {}", lock_icon, key, display_value);
                 }
             } else if plain {
-                if is_encrypted {
-                    println!("{} {}", lock_icon, key);
-                } else {
-                    println!("{}", key);
-                }
+                println!("{}", key);
             } else {
+                let lock_icon = if is_encrypted { "🔒" } else { "  " };
                 println!("{} {}", lock_icon, key);
             }
         }
