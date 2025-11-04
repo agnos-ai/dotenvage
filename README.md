@@ -97,6 +97,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Load env files with auto-decryption
     EnvLoader::new()?.load()?;
 
+    // Get all variable names (functional style)
+    let vars = EnvLoader::new()?.get_all_variable_names()?.join(", ");
+
     // Encrypt and decrypt values
     let manager = SecretManager::generate()?;
     let enc = manager.encrypt_value("secret")?;
