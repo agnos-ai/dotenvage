@@ -316,6 +316,25 @@ env:
   DOTENVAGE_AGE_KEY: ${{ secrets.AGE_KEY }}
 ```
 
+## Contributing
+
+Contributions are welcome! Before contributing, please:
+
+1. **Run the development setup script** to install git hooks:
+
+   ```bash
+   ./scripts/setup-dev.sh
+   ```
+
+2. Read the [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines
+
+The pre-commit hook enforces:
+
+- Code formatting with `cargo +nightly fmt`
+- Clippy lints with zero warnings (`-D warnings`)
+
+This ensures all commits meet quality standards before they're pushed.
+
 ## License
 
 Licensed under the MIT License. See [LICENSE](https://github.com/agnos-ai/dotenvage/blob/main/LICENSE) for
