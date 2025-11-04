@@ -119,6 +119,26 @@ cargo clippy --fix --all-targets --all-features
 
 ## Commit Guidelines
 
+### Commit Signing
+
+**All commits must be signed.** This ensures authenticity and integrity of the code.
+
+To set up commit signing:
+
+```bash
+# Configure git to sign commits with GPG
+git config --global user.signingkey YOUR_GPG_KEY_ID
+git config --global commit.gpgsign true
+
+# Or use SSH signing (GitHub supports this)
+git config --global gpg.format ssh
+git config --global user.signingkey ~/.ssh/id_ed25519.pub
+```
+
+See GitHub's guide: [Signing commits](https://docs.github.com/en/authentication/managing-commit-signature-verification/signing-commits)
+
+### Conventional Commits
+
 We follow [Conventional Commits](https://www.conventionalcommits.org/):
 
 - `feat:` - New feature
@@ -130,7 +150,7 @@ We follow [Conventional Commits](https://www.conventionalcommits.org/):
 
 Examples:
 
-```
+```text
 feat: add --json output format to list command
 fix: handle empty .env files correctly
 docs: update README with new examples
@@ -170,6 +190,7 @@ When adding new public APIs:
 - [ ] Code is formatted (`cargo +nightly fmt`)
 - [ ] Documentation is updated
 - [ ] Commit messages follow conventional commits
+- [ ] **All commits are signed** (GPG or SSH)
 - [ ] Git hooks are passing
 
 ## Getting Help
