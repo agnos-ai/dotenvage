@@ -3,7 +3,7 @@
 [![Crates.io](https://img.shields.io/crates/v/dotenvage.svg)](https://crates.io/crates/dotenvage)
 [![Documentation](https://docs.rs/dotenvage/badge.svg)](https://docs.rs/dotenvage)
 [![CI](https://github.com/agnos-ai/dotenvage/workflows/CI%2FCD/badge.svg)](https://github.com/agnos-ai/dotenvage/actions)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/agnos-ai/dotenvage/blob/main/LICENSE)
 [![Downloads](https://img.shields.io/crates/d/dotenvage.svg)](https://crates.io/crates/dotenvage)
 
 Dotenv with age encryption: encrypt/decrypt secrets in `.env` files.
@@ -75,16 +75,19 @@ source <(dotenvage dump --export)
 
 ## Library
 
-```rust
+```rust,no_run
 use dotenvage::{SecretManager, EnvLoader};
 
-// Load env files with auto-decryption
-EnvLoader::new()?.load()?;
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Load env files with auto-decryption
+    EnvLoader::new()?.load()?;
 
-// Encrypt and decrypt values
-let manager = SecretManager::generate()?;
-let enc = manager.encrypt_value("secret")?;
-let dec = manager.decrypt_value(&enc)?;
+    // Encrypt and decrypt values
+    let manager = SecretManager::generate()?;
+    let enc = manager.encrypt_value("secret")?;
+    let dec = manager.decrypt_value(&enc)?;
+    Ok(())
+}
 ```
 
 ## File Layering
@@ -95,11 +98,11 @@ Later files override values from earlier files.
 
 ### Loading Order
 
-Files are loaded using a **flexible power-set algorithm** that generates all possible combinations 
-of ENV, OS, ARCH, and USER. This allows any combination you need without being constrained by a 
+Files are loaded using a **flexible power-set algorithm** that generates all possible combinations
+of ENV, OS, ARCH, and USER. This allows any combination you need without being constrained by a
 fixed hierarchy.
 
-**Key principle**: All multi-part file names use **dots as separators only** (not dashes), 
+**Key principle**: All multi-part file names use **dots as separators only** (not dashes),
 ensuring unambiguous parsing.
 
 Files are loaded in **specificity order** (later overrides earlier):
@@ -148,33 +151,33 @@ You only need to create the files you use - the loader checks which exist.
 
 The `<OS>` placeholder supports these canonical values (with normalization):
 
-| Canonical | File Example | Aliases (normalized to canonical) |
-|-----------|--------------|-----------------------------------|
-| `linux` | `.env.prod.linux` | - |
-| `macos` | `.env.prod.macos` | `darwin`, `osx` |
-| `windows` | `.env.prod.windows` | `win32`, `win` |
-| `freebsd` | `.env.prod.freebsd` | - |
-| `openbsd` | `.env.prod.openbsd` | - |
-| `netbsd` | `.env.prod.netbsd` | - |
-| `android` | `.env.prod.android` | - |
-| `ios` | `.env.prod.ios` | - |
+| Canonical | File Example        | Aliases (normalized to canonical) |
+| --------- | ------------------- | --------------------------------- |
+| `linux`   | `.env.prod.linux`   | -                                 |
+| `macos`   | `.env.prod.macos`   | `darwin`, `osx`                   |
+| `windows` | `.env.prod.windows` | `win32`, `win`                    |
+| `freebsd` | `.env.prod.freebsd` | -                                 |
+| `openbsd` | `.env.prod.openbsd` | -                                 |
+| `netbsd`  | `.env.prod.netbsd`  | -                                 |
+| `android` | `.env.prod.android` | -                                 |
+| `ios`     | `.env.prod.ios`     | -                                 |
 
 ### Supported Architectures
 
 The `<ARCH>` placeholder supports these canonical values (with normalization):
 
-| Canonical | File Example | Aliases (normalized to canonical) |
-|-----------|--------------|-----------------------------------|
-| `amd64` | `.env.prod.amd64` | `x64`, `x86_64` |
-| `arm64` | `.env.prod.arm64` | `aarch64` |
-| `arm` | `.env.prod.arm` | `armv7`, `armv7l`, `armhf` |
-| `i386` | `.env.prod.i386` | `i686`, `x86` |
-| `riscv64` | `.env.prod.riscv64` | `riscv64gc` |
-| `ppc64le` | `.env.prod.ppc64le` | `powerpc64le` |
-| `s390x` | `.env.prod.s390x` | - |
+| Canonical | File Example        | Aliases (normalized to canonical) |
+| --------- | ------------------- | --------------------------------- |
+| `amd64`   | `.env.prod.amd64`   | `x64`, `x86_64`                   |
+| `arm64`   | `.env.prod.arm64`   | `aarch64`                         |
+| `arm`     | `.env.prod.arm`     | `armv7`, `armv7l`, `armhf`        |
+| `i386`    | `.env.prod.i386`    | `i686`, `x86`                     |
+| `riscv64` | `.env.prod.riscv64` | `riscv64gc`                       |
+| `ppc64le` | `.env.prod.ppc64le` | `powerpc64le`                     |
+| `s390x`   | `.env.prod.s390x`   | -                                 |
 
-**Note**: Custom architecture values (e.g., `docker-s3`) are passed through as lowercase and can 
-include dashes within the value itself (e.g., `.env.prod.docker-s3`), but dots remain the separator 
+**Note**: Custom architecture values (e.g., `docker-s3`) are passed through as lowercase and can
+include dashes within the value itself (e.g., `.env.prod.docker-s3`), but dots remain the separator
 between file name parts.
 
 ### Example
@@ -262,7 +265,7 @@ This layering system allows you to:
 Keys are discovered in this priority order:
 
 1. **`DOTENVAGE_AGE_KEY`** env var (full identity string)
-2. **`AGE_KEY`** env var (full identity string)  
+2. **`AGE_KEY`** env var (full identity string)
 3. **`AGE_KEY_NAME`** from .env ? key file at `$XDG_STATE_HOME/{AGE_KEY_NAME}.key`
 4. **Default**: `~/.local/state/{CARGO_PKG_NAME}/dotenvage.key`
 
@@ -279,7 +282,7 @@ Key stored at: `~/.local/state/myproject/myapp.key`
 
 ### XDG Base Directories
 
-- Prefers `$XDG_STATE_HOME` 
+- Prefers `$XDG_STATE_HOME`
 - Falls back to `~/.local/state`
 - Or `$XDG_CONFIG_HOME` / `~/.config` (legacy)
 
@@ -294,5 +297,5 @@ env:
 
 ## License
 
-Licensed under the MIT License. See [LICENSE](LICENSE) for
+Licensed under the MIT License. See [LICENSE](https://github.com/agnos-ai/dotenvage/blob/main/LICENSE) for
 details.
