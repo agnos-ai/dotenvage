@@ -258,7 +258,7 @@ This layering system allows you to:
 - **Commit ALL `.env*` files to version control** - secrets are encrypted
 - Share environment-specific configs across the team (`.env.production`, `.env.staging`)
 - Provide user-specific overrides (`.env.local.alice`) without conflicts
-- Configure architecture-specific settings (`.env.local-arm64`)
+- Configure architecture-specific settings (`.env.local.arm64`)
 
 ## Key Management
 
