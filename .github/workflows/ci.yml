@@ -175,18 +175,17 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Install Cocogitto
-        uses: cocogitto/cocogitto-action@v3
-
       - name: Generate Changelog with Cocogitto
         id: changelog
+        uses: cocogitto/cocogitto-action@v3
+        with:
+          command: changelog
+          args: --at v${{ needs.version-check.outputs.new_version }}
+
+      - name: Save Changelog to File
         run: |
-          VERSION="${{ needs.version-check.outputs.new_version }}"
-
-          # Generate changelog for current version only using cocogitto
-          cog changelog --at v${VERSION} > CHANGELOG.md
-
-          echo "Changelog generated for v$VERSION"
+          echo "${{ steps.changelog.outputs.stdout }}" > CHANGELOG.md
+          echo "Changelog generated for v${{ needs.version-check.outputs.new_version }}"
           cat CHANGELOG.md
 
       - name: Create and Push Tag
