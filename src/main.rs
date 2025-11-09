@@ -1,3 +1,11 @@
+//! # dotenvage
+//!
+//! Dotenv with age encryption: encrypt/decrypt secrets in .env files.
+//!
+//! This crate provides a CLI tool for managing .env files with age-based
+//! encryption, allowing secure storage and handling of sensitive environment
+//! variables.
+
 use std::collections::HashMap;
 use std::io::Write;
 use std::path::{
@@ -235,6 +243,8 @@ fn encrypt(file: PathBuf, keys: Option<Vec<String>>, auto: bool) -> Result<()> {
     Ok(())
 }
 
+/// Edit an environment file by decrypting, opening in editor, and re-encrypting
+/// changes.
 fn edit(file: PathBuf) -> Result<()> {
     let manager = SecretManager::new().context("Failed to load encryption key")?;
     if !file.exists() {
