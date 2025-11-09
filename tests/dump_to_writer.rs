@@ -1,9 +1,9 @@
+//! Integration tests for the dump-to-writer functionality.
+
 use std::fs;
 
-use dotenvage::{
-    EnvLoader,
-    SecretManager,
-};
+use dotenvage::SecretManager;
+use dotenvage::loader::EnvLoader;
 use tempfile::TempDir;
 
 #[test]
