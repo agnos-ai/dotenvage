@@ -1,3 +1,5 @@
+//! Integration tests for loader evaluation order.
+
 use std::env;
 
 use serial_test::serial;

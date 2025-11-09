@@ -1,3 +1,5 @@
+//! Example demonstrating how to list all environment variable names.
+
 use dotenvage::EnvLoader;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
