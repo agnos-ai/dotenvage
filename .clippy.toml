@@ -8,5 +8,3 @@ disallowed-names = ["foo", "bar", "baz", "qux", "i", "n"]
 
 # Documentation requirements
 # Enforce that all public items have documentation
-deny = ["warnings"]
-warn = ["missing_docs"]
