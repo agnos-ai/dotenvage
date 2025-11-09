@@ -219,3 +219,62 @@ jobs:
           echo "📦 Published to crates.io: https://crates.io/crates/dotenvage"
           echo "📝 GitHub Release: https://github.com/agnos-ai/dotenvage/releases/tag/v${{ needs.version-check.outputs.new_version }}"
           echo "📚 Documentation: https://docs.rs/dotenvage/${{ needs.version-check.outputs.new_version }}"
+
+  build-and-upload-binaries:
+    name: Build and Upload Binaries
+    runs-on: ${{ matrix.platform.os }}
+    needs: [release, version-check]
+    permissions:
+      contents: write
+    strategy:
+      matrix:
+        platform:
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+          - target: aarch64-pc-windows-msvc
+            os: windows-latest
+          - target: x86_64-apple-darwin
+            os: macos-15-intel
+          - target: aarch64-apple-darwin
+            os: macos-15-xlarge
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-24.04
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-24.04-arm
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: refs/tags/v${{ needs.version-check.outputs.new_version }}
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+          targets: ${{ matrix.platform.target }}
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-all-crates: "true"
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: Free Disk Space (Ubuntu)
+        if: ${{ matrix.platform.os == 'ubuntu-24.04' || matrix.platform.os == 'ubuntu-24.04-arm' }}
+        uses: jlumbroso/free-disk-space@v1.3.1
+        with:
+          large-packages: false
+          docker-images: false
+          swap-storage: false
+
+      - name: Build and upload CLI binaries
+        uses: taiki-e/upload-rust-binary-action@v1
+        with:
+          bin: dotenvage
+          token: ${{ secrets.GITHUB_TOKEN }}
+          target: ${{ matrix.platform.target }}
+          archive: $bin-$target
+          checksum: sha256
+          manifest_path: Cargo.toml
+          ref: refs/tags/v${{ needs.version-check.outputs.new_version }}
+          zip: "all"
