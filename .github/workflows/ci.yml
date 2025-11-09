@@ -142,6 +142,13 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
+      - name: Install cargo-binstall
+        if: runner.os == 'Linux'
+        run: |
+          curl -L --proto '=https' --tlsv1.2 -sSf \
+            https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh \
+            | bash
+
       - name: Install Cocogitto via binstall
         run: |
           cargo binstall --no-confirm cocogitto
