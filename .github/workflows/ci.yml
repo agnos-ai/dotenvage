@@ -154,6 +154,17 @@ jobs:
           cargo binstall --no-confirm cocogitto
           which cog  # Verify installation
 
+      - name: Ensure Release Tag Exists
+        run: |
+          VERSION="${{ needs.version-check.outputs.new_version }}"
+          TAG="v$VERSION"
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists."
+          else
+            git tag -a "$TAG" -m "Release $TAG"
+            echo "Created tag $TAG on HEAD."
+          fi
+
       - name: Generate Changelog with Cocogitto
         id: changelog
         run: |
@@ -164,12 +175,11 @@ jobs:
           cat CHANGELOG.md
           echo "Changelog generated for v${{ needs.version-check.outputs.new_version }}"
 
-      - name: Create and Push Tag
+      - name: Push Release Tag
         run: |
           VERSION="${{ needs.version-check.outputs.new_version }}"
-          git tag -a "v$VERSION" -m "Release v$VERSION"
           git push origin "v$VERSION"
-          echo "✅ Created and pushed tag v$VERSION"
+          echo "✅ Pushed tag v$VERSION"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
