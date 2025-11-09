@@ -7,6 +7,7 @@ template = "remote"
 remote = "github.com"
 repository = "dotenvage"
 owner = "agnos-ai"
+authors = [{ username = "jgeluk", signature = "Jacobus Geluk" }]
 
 [commit_types]
 feat = { changelog_title = "Features" }
@@ -22,9 +23,5 @@ chore = { changelog_title = "Miscellaneous Chores", omit_from_changelog = true }
 revert = { changelog_title = "Reverts" }
 
 [bump_profiles.default]
-pre_bump_hooks = [
-    "cargo bump {{version}}"
-]
-post_bump_hooks = [
-    "cargo update --workspace"
-]
+pre_bump_hooks = ["cargo bump {{version}}"]
+post_bump_hooks = ["cargo update --workspace"]

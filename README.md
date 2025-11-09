@@ -20,9 +20,33 @@ files with sensitive data. No more `.gitignore` juggling or secret management he
 
 ## Install
 
+### Using cargo-binstall (Recommended)
+
+The fastest way to install pre-built binaries:
+
+```bash
+cargo install cargo-binstall
+cargo binstall dotenvage
+```
+
+### Using cargo install
+
+Build from source (slower, requires Rust toolchain):
+
 ```bash
 cargo install dotenvage
 ```
+
+### Manual Installation
+
+Download pre-built binaries from [GitHub Releases](https://github.com/agnos-ai/dotenvage/releases):
+
+- Linux (x86_64): `dotenvage-x86_64-unknown-linux-gnu.zip`
+- Linux (ARM64): `dotenvage-aarch64-unknown-linux-gnu.zip`
+- macOS (Intel): `dotenvage-x86_64-apple-darwin.zip`
+- macOS (Apple Silicon): `dotenvage-aarch64-apple-darwin.zip`
+- Windows (x86_64): `dotenvage-x86_64-pc-windows-msvc.zip`
+- Windows (ARM64): `dotenvage-aarch64-pc-windows-msvc.zip`
 
 ## Usage
 
