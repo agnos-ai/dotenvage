@@ -1,3 +1,5 @@
+//! Integration tests for retrieving all environment variable names.
+
 use std::fs;
 
 use dotenvage::{
