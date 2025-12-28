@@ -33,6 +33,7 @@ struct DumpOptions {
     make: bool,
     make_eval: bool,
     export: bool,
+    docker: bool,
 }
 
 #[derive(Subcommand, Debug, Clone)]
@@ -114,6 +115,9 @@ enum Commands {
         /// Prefix each line with 'export ' for bash sourcing
         #[arg(short, long)]
         export: bool,
+        /// Docker --env-file format (no quotes, inline escaping)
+        #[arg(short, long)]
+        docker: bool,
     },
 }
 
@@ -166,12 +170,14 @@ fn main() -> Result<()> {
             make,
             make_eval,
             export,
+            docker,
         } => {
             let options = DumpOptions {
                 bash,
                 make,
                 make_eval,
                 export,
+                docker,
             };
             dump(file, options)
         }
@@ -488,50 +494,22 @@ fn dump(file: Option<PathBuf>, options: DumpOptions) -> Result<()> {
         let all_vars = parse_env_file(&content)?;
         dump_vars(&manager, &all_vars, options)?;
     } else {
-        // Scan ordered files and show sections for each file
+        // Always merge/deduplicate when scanning multiple files (last value wins)
+        // This matches the actual precedence behavior and avoids confusion
         let loader = dotenvage::EnvLoader::with_manager(manager.clone());
         let paths = loader.resolve_env_paths(Path::new("."));
-        let mut is_first = true;
+        let mut merged_vars = HashMap::new();
 
-        for p in paths {
-            process_env_file(&p, &manager, &mut is_first, options)?;
+        for path in paths {
+            if path.exists() {
+                let content = std::fs::read_to_string(&path)?;
+                let file_vars = parse_env_file(&content)?;
+                // Later files override earlier files
+                merged_vars.extend(file_vars);
+            }
         }
+        dump_vars(&manager, &merged_vars, options)?;
     }
-
-    Ok(())
-}
-
-/// Process a single env file and dump its contents
-fn process_env_file(
-    path: &Path,
-    manager: &SecretManager,
-    is_first: &mut bool,
-    options: DumpOptions,
-) -> Result<()> {
-    if !path.exists() {
-        return Ok(());
-    }
-
-    let content = std::fs::read_to_string(path)?;
-    let vars = parse_env_file(&content)?;
-
-    // Only show section if the file has variables
-    if vars.is_empty() {
-        return Ok(());
-    }
-
-    // Add blank line between sections (except for first section and make modes)
-    let show_section_header = !options.make && !options.make_eval;
-    if !*is_first && show_section_header {
-        println!(); // Blank line between sections
-    }
-
-    if show_section_header {
-        println!("# {}", path.display());
-    }
-
-    dump_vars(manager, &vars, options)?;
-    *is_first = false;
 
     Ok(())
 }
@@ -598,14 +576,22 @@ fn dump_make_var(key: &str, value: &str, export: bool) {
 
 /// Output variable in env/bash format
 fn dump_env_var(key: &str, value: &str, options: DumpOptions) {
-    let use_bash_mode = options.bash || options.export;
     let prefix = if options.export { "export " } else { "" };
 
-    if use_bash_mode {
+    if options.docker {
+        dump_docker_var(key, value, prefix);
+    } else if options.bash || options.export {
         dump_bash_var(key, value, prefix);
     } else {
         dump_simple_var(key, value, prefix);
     }
+}
+
+/// Output variable in Docker --env-file format (no quotes, raw value)
+fn dump_docker_var(key: &str, value: &str, prefix: &str) {
+    // Docker's --env-file format: KEY=value (no quotes, value extends to EOL)
+    // Docker handles special characters correctly without escaping
+    println!("{}{}={}", prefix, key, value);
 }
 
 /// Output variable with bash-compliant escaping
