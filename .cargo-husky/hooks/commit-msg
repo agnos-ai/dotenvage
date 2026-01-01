@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Usage: commit-msg <path-to-commit-message>
+MSG_FILE="$1"
+
+# Require cocogitto to be installed
+if ! command -v cog >/dev/null 2>&1; then
+  echo "cog (cocogitto) is required to commit. Install with: cargo install cocogitto" >&2
+  exit 1
+fi
+
+# Verify commit message with cocogitto (single message)
+if ! cog verify --file "$MSG_FILE" >/dev/null; then
+  echo "Commit message does not follow Conventional Commits." >&2
+  echo "See https://www.conventionalcommits.org/ for format requirements." >&2
+  exit 1
+fi
+
+exit 0
