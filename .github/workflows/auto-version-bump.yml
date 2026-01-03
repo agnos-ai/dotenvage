@@ -83,7 +83,7 @@ jobs:
       - name: Bump patch version with cocogitto
         run: |
           export PATH="$HOME/.cargo/bin:$PATH"
-          # Use cog bump to create conventional commit and tag
+          # Root-level pre_bump_hooks run automatically
           cog bump --patch --skip-ci
           NEW_VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
           echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_ENV

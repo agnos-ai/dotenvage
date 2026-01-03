@@ -1,6 +1,14 @@
 # Tag prefix (v0.0.1, v0.0.2, etc.)
 tag_prefix = "v"
 
+# Root-level hooks run automatically (no --hook-profile flag needed)
+pre_bump_hooks = [
+    "cargo set-version {{version}}",
+    "cargo update --workspace",
+    "git add Cargo.toml Cargo.lock",
+]
+post_bump_hooks = []
+
 [changelog]
 path = "CHANGELOG.md"
 template = "remote"
@@ -21,13 +29,3 @@ build = { changelog_title = "Build System" }
 ci = { changelog_title = "Continuous Integration", omit_from_changelog = true }
 chore = { changelog_title = "Miscellaneous Chores", omit_from_changelog = true }
 revert = { changelog_title = "Reverts" }
-
-[bump_profiles.default]
-# Cocogitto calculates the new version but doesn't update Cargo.toml automatically
-# pre_bump_hooks run BEFORE the commit and tag are created
-pre_bump_hooks = [
-    "cargo set-version {{version}}",
-    "cargo update --workspace",
-    "git add Cargo.toml Cargo.lock",
-]
-post_bump_hooks = []
