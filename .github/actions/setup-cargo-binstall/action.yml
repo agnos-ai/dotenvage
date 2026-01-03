@@ -1,6 +1,5 @@
 name: Setup cargo-binstall
 description: Install cargo-binstall for fast binary installations
-author: DataRoad Inc.
 
 runs:
   using: composite

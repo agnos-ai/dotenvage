@@ -1,6 +1,5 @@
 name: Setup Cocogitto
 description: Install Cocogitto with caching for version management and changelog generation
-author: DataRoad Inc.
 
 runs:
   using: composite

@@ -1,6 +1,5 @@
 name: Setup cargo-edit
 description: Install cargo-edit (provides cargo set-version) with caching
-author: DataRoad Inc.
 
 runs:
   using: composite

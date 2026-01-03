@@ -1,6 +1,5 @@
 name: Generate Changelog
 description: Generate changelog from conventional commits using cocogitto
-author: DataRoad Inc.
 
 inputs:
   release-tag:
