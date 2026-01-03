@@ -79,9 +79,9 @@ jobs:
           path: target
           key: ${{ runner.os }}-${{ matrix.rust }}-target-test-${{ hashFiles('**/Cargo.lock') }}
       - name: Run tests
-        run: cargo test --verbose
+        run: cargo test
       - name: Run doc tests
-        run: cargo test --doc --verbose
+        run: cargo test --doc
 
   # Detect version changes and prepare for release
   version-check:
