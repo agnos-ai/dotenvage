@@ -8,6 +8,9 @@ runs:
     - name: Setup cargo-binstall
       uses: ./.github/actions/setup-cargo-binstall
 
+    - name: Setup cargo-edit
+      uses: ./.github/actions/setup-cargo-edit
+
     - name: Ensure cargo bin directory exists
       shell: bash
       run: mkdir -p "$HOME/.cargo/bin"
@@ -41,4 +44,3 @@ runs:
           ls -la "$HOME/.cargo/bin/" || echo "Directory does not exist"
           exit 1
         fi
-
