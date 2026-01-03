@@ -1,0 +1,44 @@
+name: Setup Cocogitto
+description: Install Cocogitto with caching for version management and changelog generation
+author: DataRoad Inc.
+
+runs:
+  using: composite
+  steps:
+    - name: Setup cargo-binstall
+      uses: ./.github/actions/setup-cargo-binstall
+
+    - name: Ensure cargo bin directory exists
+      shell: bash
+      run: mkdir -p "$HOME/.cargo/bin"
+
+    - name: Cache cocogitto binary
+      uses: actions/cache@v4
+      id: cache-cog
+      with:
+        path: ~/.cargo/bin/cog${{ runner.os == 'Windows' && '.exe' || '' }}
+        key: cocogitto-6.5.0-${{ runner.os }}-${{ runner.arch }}
+
+    - name: Install cocogitto if not cached
+      if: steps.cache-cog.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        echo "Installing cocogitto via cargo-binstall..."
+        export PATH="$HOME/.cargo/bin:$PATH"
+        cargo binstall --no-confirm --force --version 6.5.0 cocogitto
+        echo "✓ cocogitto installed"
+
+    - name: Verify installation
+      shell: bash
+      run: |
+        COG_BIN="$HOME/.cargo/bin/cog${{ runner.os == 'Windows' && '.exe' || '' }}"
+        if [ -f "$COG_BIN" ]; then
+          chmod +x "$COG_BIN"
+          "$COG_BIN" --version
+        else
+          echo "❌ Error: cog binary not found at $COG_BIN"
+          echo "Checking cargo bin directory:"
+          ls -la "$HOME/.cargo/bin/" || echo "Directory does not exist"
+          exit 1
+        fi
+

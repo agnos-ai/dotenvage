@@ -4,10 +4,14 @@ This document contains information for repository maintainers.
 
 ## Security-Critical Project
 
-⚠️ **Important**: dotenvage is a security and cryptography tool. Users trust us with their encrypted secrets, API keys, and passwords. This demands:
+⚠️ **Important**: dotenvage is a security and cryptography tool. Users
+trust us with their encrypted secrets, API keys, and passwords. This
+demands:
 
-- **Strict review standards** - Security implications must be considered for every change
-- **Mandatory signed commits** - Verify authenticity of all code changes
+- **Strict review standards** - Security implications must be
+  considered for every change
+- **Mandatory signed commits** - Verify authenticity of all code
+  changes
 - **Linear history** - Makes auditing and rollback simpler
 - **Comprehensive CI** - Every commit must pass all checks
 - **Zero-warning policy** - Clippy warnings can hide real issues
@@ -37,7 +41,8 @@ gh api repos/agnos-ai/dotenvage/branches/main/protection
 
 ### Required Branch Protection Rules
 
-**For a security-critical project, ALL of these must be enabled** on the `main` branch:
+**For a security-critical project, ALL of these must be enabled** on
+the `main` branch:
 
 - [x] **Require a pull request before merging** ⚠️ REQUIRED
   - Require approvals: 1 minimum
@@ -49,9 +54,11 @@ gh api repos/agnos-ai/dotenvage/branches/main/protection
 - [x] **Require signed commits** ⚠️ REQUIRED
 - [x] **Require linear history** ⚠️ REQUIRED
 - [x] **Do not allow bypassing the above settings** ⚠️ REQUIRED
-- [x] **Restrict who can push to matching branches** - Maintainers only
+- [x] **Restrict who can push to matching branches** - Maintainers
+      only
 
-**Why so strict?** This is a security tool. A compromised commit could leak users' encrypted secrets. Every safeguard matters.
+**Why so strict?** This is a security tool. A compromised commit could
+leak users' encrypted secrets. Every safeguard matters.
 
 ### Secrets Configuration
 
@@ -63,7 +70,8 @@ Ensure these secrets are configured:
 
 ## Release Process
 
-Releases are automated via GitHub Actions when the version in `Cargo.toml` changes:
+Releases are automated via GitHub Actions when the version in
+`Cargo.toml` changes:
 
 1. Update version in `Cargo.toml`
 2. Commit and push to `main`
@@ -89,7 +97,8 @@ When reviewing PRs that touch cryptography, key handling, or file I/O:
 
 - [ ] **Cryptography changes**: Verify age library usage is correct
 - [ ] **Key handling**: Ensure keys are never logged or leaked
-- [ ] **File permissions**: Check that key files have proper permissions (0600)
+- [ ] **File permissions**: Check that key files have proper
+      permissions (0600)
 - [ ] **Input validation**: Validate all user inputs and file contents
 - [ ] **Error messages**: Don't leak sensitive info in error messages
 - [ ] **Dependencies**: Audit new dependencies for security issues
@@ -102,4 +111,5 @@ When reviewing PRs that touch cryptography, key handling, or file I/O:
 - Never commit secrets, keys, or plaintext sensitive data
 - Use age encryption for any sensitive values in test fixtures
 - Report security vulnerabilities privately (not via public issues)
-- Keep dependencies updated, especially `age`, `base64`, and crypto-related crates
+- Keep dependencies updated, especially `age`, `base64`, and
+  crypto-related crates

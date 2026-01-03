@@ -4,6 +4,24 @@
         "editor.formatOnSave": true,
         "editor.defaultFormatter": "rust-lang.rust-analyzer"
     },
+    "[markdown]": {
+        "editor.rulers": [70],
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "editor.formatOnSave": true,
+        "editor.wordWrap": "bounded",
+        "editor.wordWrapColumn": 70
+    },
+    "markdownlint.config": {
+        "MD013": {
+            "line_length": 70,
+            "code_blocks": false,
+            "tables": false,
+            "headings": false,
+            "headings_line_length": false
+        }
+    },
+    "prettier.printWidth": 70,
+    "prettier.proseWrap": "always",
     "rust-analyzer.rustfmt.extraArgs": [
         "+nightly"
     ],

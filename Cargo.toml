@@ -12,6 +12,21 @@ repository = "https://github.com/agnos-ai/dotenvage"
 documentation = "https://docs.rs/dotenvage"
 homepage = "https://github.com/agnos-ai/dotenvage"
 
+exclude = [
+    ".cargo/",
+    ".cargo-husky/",
+    ".clippy.toml",
+    ".cursor/",
+    ".github/",
+    ".gitignore",
+    ".rust-toolchain.toml",
+    ".vscode/",
+    "CONTRIBUTING.md",
+    "cog.toml",
+    "rustfmt.toml",
+    "scripts/",
+]
+
 [lib]
 name = "dotenvage"
 path = "src/lib.rs"

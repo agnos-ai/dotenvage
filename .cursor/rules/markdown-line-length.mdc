@@ -1,0 +1,59 @@
+---
+description: Markdown line length guidelines and IDE configuration
+globs: **/*.md, **/*.mdx, **/*.mdc
+alwaysApply: false
+---
+
+# Markdown Line Length Rule
+
+## Line Length Limit
+
+- **Maximum line length**: 70 characters for all markdown files (.md,
+  .mdx, .mdc)
+- **Use line breaks**: Wrap long lines with proper line breaks
+- **Preserve readability**: Break at natural points like sentence
+  endings
+
+## Blanks around lists
+
+In order to avoid markdownlint error MD032 you need to add more blank
+lines than usual around any type of list and under each heading.
+
+Otherwise markdownlint gives this error:
+
+```.text
+MD032/blanks-around-lists: Lists should be surrounded by blank
+```
+
+## VSCode Settings
+
+The `.vscode/settings.json` file should include:
+
+```json
+{
+  "[markdown]": {
+    "editor.rulers": [70],
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.formatOnSave": true,
+    "editor.wordWrap": "bounded",
+    "editor.wordWrapColumn": 70
+  },
+  "markdownlint.config": {
+    "MD013": {
+      "line_length": 70,
+      "code_blocks": false,
+      "tables": false,
+      "headings": false,
+      "headings_line_length": false
+    }
+  },
+  "prettier.printWidth": 70,
+  "prettier.proseWrap": "always"
+}
+```
+
+## Enforcement
+
+- Check line length when editing markdown files
+- Break lines at 70 characters
+- Use proper markdown line breaks (two spaces + newline)

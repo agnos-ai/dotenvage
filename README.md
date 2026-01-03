@@ -8,9 +8,10 @@
 
 Dotenv with age encryption: encrypt/decrypt secrets in `.env` files.
 
-**The key advantage**: With encrypted secrets, you can safely **commit all your `.env*`
-files to version control** - including production configs, user-specific settings, and
-files with sensitive data. No more `.gitignore` juggling or secret management headaches.
+**The key advantage**: With encrypted secrets, you can safely **commit
+all your `.env*` files to version control** - including production
+configs, user-specific settings, and files with sensitive data. No
+more `.gitignore` juggling or secret management headaches.
 
 - Selective encryption of sensitive keys
 - Uses age (X25519) for modern encryption
@@ -18,7 +19,7 @@ files with sensitive data. No more `.gitignore` juggling or secret management he
 - CI-friendly (supports key via env var)
 - Automatic file layering with precedence rules
 
-## Install
+## Installation
 
 ### Using cargo-binstall (Recommended)
 
@@ -39,7 +40,8 @@ cargo install dotenvage
 
 ### Manual Installation
 
-Download pre-built binaries from [GitHub Releases](https://github.com/agnos-ai/dotenvage/releases):
+Download pre-built binaries from
+[GitHub Releases](https://github.com/agnos-ai/dotenvage/releases):
 
 - Linux (x86_64): `dotenvage-x86_64-unknown-linux-gnu.zip`
 - Linux (ARM64): `dotenvage-aarch64-unknown-linux-gnu.zip`
@@ -134,33 +136,41 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## File Layering
 
-One of dotenvage's key features is **automatic file layering** - multiple `.env*`
-files are loaded and merged with a clear precedence order.
-Later files override values from earlier files.
+One of dotenvage's key features is **automatic file layering** -
+multiple `.env*` files are loaded and merged with a clear precedence
+order. Later files override values from earlier files.
 
 ### Loading Order
 
-Files are loaded using a **flexible power-set algorithm** that generates all possible combinations
-of ENV, OS, ARCH, and USER. This allows any combination you need without being constrained by a
-fixed hierarchy.
+Files are loaded using a **flexible power-set algorithm** that
+generates all possible combinations of ENV, OS, ARCH, and USER. This
+allows any combination you need without being constrained by a fixed
+hierarchy.
 
-**Key principle**: All multi-part file names use **dots as separators only** (not dashes),
-ensuring unambiguous parsing.
+**Key principle**: All multi-part file names use **dots as separators
+only** (not dashes), ensuring unambiguous parsing.
 
 Files are loaded in **specificity order** (later overrides earlier):
 
 1. **`.env`** - Base configuration (always first)
-2. **Single-part patterns**: `.env.<ENV>`, `.env.<OS>`, `.env.<ARCH>`, `.env.<USER>`
-3. **Two-part combinations**: `.env.<ENV>.<OS>`, `.env.<ENV>.<ARCH>`, `.env.<ENV>.<USER>`, etc.
-4. **Three-part combinations**: `.env.<ENV>.<OS>.<ARCH>`, `.env.<ENV>.<OS>.<USER>`, etc.
-5. **Four-part combination**: `.env.<ENV>.<OS>.<ARCH>.<USER>` (most specific)
-6. **`.env.pr-<NUMBER>`** - PR-specific (GitHub Actions only, always last)
+2. **Single-part patterns**: `.env.<ENV>`, `.env.<OS>`, `.env.<ARCH>`,
+   `.env.<USER>`
+3. **Two-part combinations**: `.env.<ENV>.<OS>`, `.env.<ENV>.<ARCH>`,
+   `.env.<ENV>.<USER>`, etc.
+4. **Three-part combinations**: `.env.<ENV>.<OS>.<ARCH>`,
+   `.env.<ENV>.<OS>.<USER>`, etc.
+5. **Four-part combination**: `.env.<ENV>.<OS>.<ARCH>.<USER>` (most
+   specific)
+6. **`.env.pr-<NUMBER>`** - PR-specific (GitHub Actions only, always
+   last)
 
-**All files can be safely committed to git** since secrets are encrypted.
+**All files can be safely committed to git** since secrets are
+encrypted.
 
 #### Example Combinations
 
-With `ENV=prod`, `OS=linux`, `ARCH=amd64`, `USER=alice`, these files would be loaded (in order):
+With `ENV=prod`, `OS=linux`, `ARCH=amd64`, `USER=alice`, these files
+would be loaded (in order):
 
 - `.env`
 - `.env.prod`
@@ -179,7 +189,8 @@ With `ENV=prod`, `OS=linux`, `ARCH=amd64`, `USER=alice`, these files would be lo
 - `.env.linux.amd64.alice`
 - `.env.prod.linux.amd64.alice`
 
-You only need to create the files you use - the loader checks which exist.
+You only need to create the files you use - the loader checks which
+exist.
 
 ### Placeholders
 
@@ -193,7 +204,8 @@ You only need to create the files you use - the loader checks which exist.
 
 ### Supported Operating Systems
 
-The `<OS>` placeholder supports these canonical values (with normalization):
+The `<OS>` placeholder supports these canonical values (with
+normalization):
 
 | Canonical | File Example        | Aliases (normalized to canonical) |
 | --------- | ------------------- | --------------------------------- |
@@ -208,7 +220,8 @@ The `<OS>` placeholder supports these canonical values (with normalization):
 
 ### Supported Architectures
 
-The `<ARCH>` placeholder supports these canonical values (with normalization):
+The `<ARCH>` placeholder supports these canonical values (with
+normalization):
 
 | Canonical | File Example        | Aliases (normalized to canonical) |
 | --------- | ------------------- | --------------------------------- |
@@ -220,9 +233,10 @@ The `<ARCH>` placeholder supports these canonical values (with normalization):
 | `ppc64le` | `.env.prod.ppc64le` | `powerpc64le`                     |
 | `s390x`   | `.env.prod.s390x`   | -                                 |
 
-**Note**: Custom architecture values (e.g., `docker-s3`) are passed through as lowercase and can
-include dashes within the value itself (e.g., `.env.prod.docker-s3`), but dots remain the separator
-between file name parts.
+**Note**: Custom architecture values (e.g., `docker-s3`) are passed
+through as lowercase and can include dashes within the value itself
+(e.g., `.env.prod.docker-s3`), but dots remain the separator between
+file name parts.
 
 ### Example
 
@@ -250,7 +264,8 @@ DATABASE_URL=postgres://localhost/mydb
 SECRET_TOKEN=decrypted_value
 ```
 
-Running `dotenvage dump --export` produces (note: `--export` automatically enables bash-compliant escaping):
+Running `dotenvage dump --export` produces (note: `--export`
+automatically enables bash-compliant escaping):
 
 ```bash
 # .env
@@ -264,7 +279,8 @@ export SECRET_TOKEN=decrypted_value
 
 ### Bash-Compliant Escaping
 
-When using `--bash` or `--export` (which auto-enables `--bash`), special bash characters are properly escaped:
+When using `--bash` or `--export` (which auto-enables `--bash`),
+special bash characters are properly escaped:
 
 ```bash
 # Without --bash (simple .env format)
@@ -274,11 +290,13 @@ PASSWORD=my$ecret
 PASSWORD="my\$ecret"
 ```
 
-This ensures values with `$`, `` ` ``, `\`, `!`, and other bash special characters are safely preserved when sourced.
+This ensures values with `$`, `` ` ``, `\`, `!`, and other bash
+special characters are safely preserved when sourced.
 
 ### GNU Make Integration
 
-Use `--make-eval` to securely load variables directly into Make without creating temporary files:
+Use `--make-eval` to securely load variables directly into Make
+without creating temporary files:
 
 ```makefile
 # Makefile example - secure, no temp file with secrets
@@ -291,17 +309,28 @@ deploy:
 	@echo "Using API key: $$API_KEY"
 ```
 
-**Security Note**: `--make-eval` outputs `$(eval ...)` statements that are processed directly by Make, avoiding the security risk of writing decrypted secrets to temporary files.
+**Security Note**: `--make-eval` outputs `$(eval ...)` statements that
+are processed directly by Make, avoiding the security risk of writing
+decrypted secrets to temporary files.
 
-**Important**: Access variables as `$$VAR` (environment variables) in recipes, not `$(VAR)` (Make variable expansion). The `export` directive makes all variables available to recipe shells as environment variables, where special characters like `$` are properly preserved.
+**Important**: Access variables as `$$VAR` (environment variables) in
+recipes, not `$(VAR)` (Make variable expansion). The `export`
+directive makes all variables available to recipe shells as
+environment variables, where special characters like `$` are properly
+preserved.
 
-**Alternative**: If you need the Make format for other purposes, `--make` outputs `VAR := value` format (but creates a file if redirected).
+**Alternative**: If you need the Make format for other purposes,
+`--make` outputs `VAR := value` format (but creates a file if
+redirected).
 
 This layering system allows you to:
 
-- **Commit ALL `.env*` files to version control** - secrets are encrypted
-- Share environment-specific configs across the team (`.env.production`, `.env.staging`)
-- Provide user-specific overrides (`.env.local.alice`) without conflicts
+- **Commit ALL `.env*` files to version control** - secrets are
+  encrypted
+- Share environment-specific configs across the team
+  (`.env.production`, `.env.staging`)
+- Provide user-specific overrides (`.env.local.alice`) without
+  conflicts
 - Configure architecture-specific settings (`.env.local.arm64`)
 
 ## Key Management
@@ -311,7 +340,8 @@ Keys are discovered in this priority order:
 1. **`DOTENVAGE_AGE_KEY`** env var (full identity string)
 2. **`AGE_KEY`** env var (full identity string)
 3. **`EKG_AGE_KEY`** env var (for EKG project compatibility)
-4. **`AGE_KEY_NAME`** from .env → key file at `$XDG_STATE_HOME/{AGE_KEY_NAME}.key`
+4. **`AGE_KEY_NAME`** from .env → key file at
+   `$XDG_STATE_HOME/{AGE_KEY_NAME}.key`
 5. **Default**: `~/.local/state/{CARGO_PKG_NAME}/dotenvage.key`
 
 ### Project-Specific Keys
@@ -342,9 +372,12 @@ env:
 
 ## Contributing
 
-Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for setup instructions and guidelines.
+Contributions are welcome! Please see
+[CONTRIBUTING.md](CONTRIBUTING.md) for setup instructions and
+guidelines.
 
 ## License
 
-Licensed under the MIT License. See [LICENSE](https://github.com/agnos-ai/dotenvage/blob/main/LICENSE) for
+Licensed under the MIT License. See
+[LICENSE](https://github.com/agnos-ai/dotenvage/blob/main/LICENSE) for
 details.

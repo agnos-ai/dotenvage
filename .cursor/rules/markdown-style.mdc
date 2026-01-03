@@ -1,0 +1,21 @@
+---
+description: Markdown style guidelines for docs and ADRs
+globs: docs/**/*.mdx, docs/**/*.md, **/*.mdx, **/*.md
+alwaysApply: false
+---
+
+# Markdown Style
+
+- Keep lines to ≤ 70 characters where practical for readability in diffs.
+
+- Place a blank line after each heading.
+
+- Surround lists and code blocks with a blank line above and below.
+
+- In lists, keep indentation consistent; avoid mixing list item
+  indentation levels.
+
+- Prefer fenced code blocks with language hints, and avoid trailing
+  whitespace.
+
+- Prefer short paragraphs; avoid overly long unbroken text.
