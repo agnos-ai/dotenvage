@@ -2,7 +2,7 @@
 . "$(dirname "$0")/_/sloughi.sh"
 
 # Check if any Rust files are being committed
-RUST_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep '\.rs$')
+RUST_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep '\.rs$' || true)
 
 if [ -z "$RUST_FILES" ]; then
     echo "No Rust files in this commit, skipping checks."
