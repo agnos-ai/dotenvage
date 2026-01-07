@@ -27,7 +27,7 @@ These strict requirements protect users who trust us with their secrets.
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/agnos-ai/dotenvage.git
+git clone https://github.com/dataroadinc/dotenvage.git
 cd dotenvage
 ```
 

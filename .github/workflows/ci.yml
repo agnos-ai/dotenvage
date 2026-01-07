@@ -203,7 +203,7 @@ jobs:
         run: |
           echo "🎉 Successfully released v${{ needs.version-check.outputs.new_version }}"
           echo "📦 Published to crates.io: https://crates.io/crates/dotenvage"
-          echo "📝 GitHub Release: https://github.com/agnos-ai/dotenvage/releases/tag/v${{ needs.version-check.outputs.new_version }}"
+          echo "📝 GitHub Release: https://github.com/dataroadinc/dotenvage/releases/tag/v${{ needs.version-check.outputs.new_version }}"
           echo "📚 Documentation: https://docs.rs/dotenvage/${{ needs.version-check.outputs.new_version }}"
 
   build-and-upload-binaries:

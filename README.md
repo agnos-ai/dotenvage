@@ -2,8 +2,8 @@
 
 [![Crates.io](https://img.shields.io/crates/v/dotenvage.svg)](https://crates.io/crates/dotenvage)
 [![Documentation](https://docs.rs/dotenvage/badge.svg)](https://docs.rs/dotenvage)
-[![CI](https://github.com/agnos-ai/dotenvage/workflows/CI%2FCD/badge.svg)](https://github.com/agnos-ai/dotenvage/actions)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/agnos-ai/dotenvage/blob/main/LICENSE)
+[![CI](https://github.com/dataroadinc/dotenvage/workflows/CI%2FCD/badge.svg)](https://github.com/dataroadinc/dotenvage/actions)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/dataroadinc/dotenvage/blob/main/LICENSE)
 [![Downloads](https://img.shields.io/crates/d/dotenvage.svg)](https://crates.io/crates/dotenvage)
 
 Dotenv with age encryption: encrypt/decrypt secrets in `.env` files.
@@ -41,7 +41,7 @@ cargo install dotenvage
 ### Manual Installation
 
 Download pre-built binaries from
-[GitHub Releases](https://github.com/agnos-ai/dotenvage/releases):
+[GitHub Releases](https://github.com/dataroadinc/dotenvage/releases):
 
 - Linux (x86_64): `dotenvage-x86_64-unknown-linux-gnu.zip`
 - Linux (ARM64): `dotenvage-aarch64-unknown-linux-gnu.zip`
@@ -379,5 +379,5 @@ guidelines.
 ## License
 
 Licensed under the MIT License. See
-[LICENSE](https://github.com/agnos-ai/dotenvage/blob/main/LICENSE) for
+[LICENSE](https://github.com/dataroadinc/dotenvage/blob/main/LICENSE) for
 details.

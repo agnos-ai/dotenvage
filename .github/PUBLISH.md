@@ -43,7 +43,7 @@ PR and merge.
 
 2. Add to GitHub repository secrets:
    - Go to:
-     https://github.com/agnos-ai/dotenvage/settings/secrets/actions
+     https://github.com/dataroadinc/dotenvage/settings/secrets/actions
    - Click "New repository secret"
    - Name: `CRATES_IO_TOKEN`
    - Value: `<your-token-here>`
@@ -160,7 +160,7 @@ BREAKING CHANGE: Default key path changed from
 After pushing your version bump:
 
 1. Go to:
-   https://github.com/agnos-ai/dotenvage/actions
+   https://github.com/dataroadinc/dotenvage/actions
 2. Watch the "CI/CD" workflow
 3. The "Release" job will show:
    - Changelog generation
@@ -174,7 +174,7 @@ After the workflow completes:
 
 ```bash
 # Check the new release
-open https://github.com/agnos-ai/dotenvage/releases
+open https://github.com/dataroadinc/dotenvage/releases
 
 # Check crates.io
 open https://crates.io/crates/dotenvage
