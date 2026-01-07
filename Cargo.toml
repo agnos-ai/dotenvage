@@ -8,9 +8,9 @@ keywords = ["dotenv", "age", "encryption", "secrets", "cli"]
 categories = ["cryptography", "config", "command-line-utilities"]
 readme = "README.md"
 authors = ["Jacobus Geluk <jacobus@agnos.ai>"]
-repository = "https://github.com/agnos-ai/dotenvage"
+repository = "git@github.com:dataroadinc/dotenvage.git"
 documentation = "https://docs.rs/dotenvage"
-homepage = "https://github.com/agnos-ai/dotenvage"
+homepage = "https://github.com/dataroadinc/dotenvage"
 
 exclude = [
     ".cargo/",
