@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Usage: commit-msg <path-to-commit-message>
+MSG_FILE="$1"
+
+# Require cocogitto to be installed
+if ! command -v cog >/dev/null 2>&1; then
+  echo "cog (cocogitto) is required to commit. Install with: cargo install cocogitto" >&2
+  exit 1
+fi
+
+# Verify commit message with cocogitto (single message)
+if ! cog verify --file "$MSG_FILE" >/dev/null; then
+  echo "Commit message does not follow Conventional Commits." >&2
+  exit 1
+fi
+
+# Enforce: scope is mandatory, e.g. feat(api): ...
+# Accepts letters for type, and scope with [a-z0-9./-]
+if ! grep -E -q '^[a-z]+\([a-z0-9][a-z0-9./-]*\)(!:)?\: ' "$MSG_FILE"; then
+  echo "Commit message must include a scope, e.g.: feat(backend): add endpoint" >&2
+  exit 1
+fi
+
+exit 0
+
+

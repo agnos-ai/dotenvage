@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Verify that the commit was actually signed
+echo "=== post-commit: verifying commit signature ===" >&2
+
+COMMIT_HASH=$(git rev-parse HEAD)
+SIG_STATUS=$(git show --pretty=format:"%G?" --no-patch "$COMMIT_HASH" 2>/dev/null || echo "N")
+
+case "$SIG_STATUS" in
+    G)
+        echo "✓ Commit is properly signed" >&2
+        ;;
+    B)
+        echo "ERROR: Bad signature on commit $COMMIT_HASH" >&2
+        echo "The commit signature is invalid. Please check your signing key configuration." >&2
+        exit 1
+        ;;
+    X)
+        echo "ERROR: Expired key used to sign commit $COMMIT_HASH" >&2
+        exit 1
+        ;;
+    Y)
+        echo "ERROR: Expired signature on commit $COMMIT_HASH" >&2
+        exit 1
+        ;;
+    R)
+        echo "ERROR: Revoked key used to sign commit $COMMIT_HASH" >&2
+        exit 1
+        ;;
+    E)
+        echo "ERROR: Cannot verify signature on commit $COMMIT_HASH" >&2
+        echo "Please check your signing key configuration and allowed_signers file." >&2
+        exit 1
+        ;;
+    N)
+        echo "ERROR: Commit $COMMIT_HASH is not signed!" >&2
+        echo "All commits must be signed. The commit was created but is unsigned." >&2
+        echo "To fix this commit, run: git commit --amend --no-edit" >&2
+        exit 1
+        ;;
+    *)
+        echo "ERROR: Unknown signature status '$SIG_STATUS' for commit $COMMIT_HASH" >&2
+        exit 1
+        ;;
+esac
+
+exit 0
+
