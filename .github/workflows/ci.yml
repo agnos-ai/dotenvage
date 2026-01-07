@@ -195,9 +195,9 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
 
       - name: Publish to crates.io
-        run: cargo publish --allow-dirty --token ${{ secrets.CRATES_IO_TOKEN }}
+        run: cargo publish --allow-dirty --token ${{ secrets.CRATES_IO }}
         env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO }}
 
       - name: Release Summary
         run: |
