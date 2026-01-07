@@ -492,8 +492,8 @@ impl SecretManager {
     ///
     /// ## Examples
     ///
-    /// With `AGE_KEY_NAME=ekg/dr-rs-ekg` in .env:
-    /// - Returns: `~/.local/state/ekg/dr-rs-ekg.key`
+    /// With `AGE_KEY_NAME=myapp/production` in .env:
+    /// - Returns: `~/.local/state/myapp/production.key`
     ///
     /// Without AGE_KEY_NAME (default for "ekg-backend" crate):
     /// - Returns: `~/.local/state/ekg-backend/dotenvage.key`

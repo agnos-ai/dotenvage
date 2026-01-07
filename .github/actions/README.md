@@ -281,7 +281,8 @@ These actions are shared across multiple repositories:
 - cargo-fmt-toml
 - cargo-version-info
 - dotenvage
-- dr-rs-ekg (source)
+- cargo-propagate-features
+- cargo-nightly
 
 Updates should be synchronized across repositories when possible.
 
