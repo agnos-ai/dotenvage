@@ -8,7 +8,7 @@ keywords = ["dotenv", "age", "encryption", "secrets", "cli"]
 categories = ["cryptography", "config", "command-line-utilities"]
 readme = "README.md"
 authors = ["Jacobus Geluk <jacobus@agnos.ai>"]
-repository = "git@github.com:dataroadinc/dotenvage.git"
+repository = "https://github.com/dataroadinc/dotenvage"
 documentation = "https://docs.rs/dotenvage"
 homepage = "https://github.com/dataroadinc/dotenvage"
 
