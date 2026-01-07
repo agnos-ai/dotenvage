@@ -11,6 +11,8 @@ authors = ["Jacobus Geluk <jacobus@agnos.ai>"]
 repository = "https://github.com/dataroadinc/dotenvage"
 documentation = "https://docs.rs/dotenvage"
 homepage = "https://github.com/dataroadinc/dotenvage"
+rust-version = "1.92.0"
+publish = true
 
 exclude = [
     ".cargo/",

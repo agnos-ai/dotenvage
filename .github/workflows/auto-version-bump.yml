@@ -83,17 +83,24 @@ jobs:
       - name: Bump patch version with cocogitto
         run: |
           export PATH="$HOME/.cargo/bin:$PATH"
+          # Use cog bump to create conventional commit (tag will be created by CI after tests)
           # Root-level pre_bump_hooks run automatically
           cog bump --patch --skip-ci
           NEW_VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
           echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_ENV
           echo "Bumped to version: $NEW_VERSION"
 
-      - name: Push changes and tags
+          # Delete the tag created by cog bump - CI will create it after tests pass
+          TAG="v$NEW_VERSION"
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            git tag -d "$TAG" || true
+            echo "Deleted local tag $TAG (CI will create it after tests pass)"
+          fi
+
+      - name: Push changes (without tags)
         run: |
           git push
-          git push --tags
-          echo "✅ Pushed commit and tag v$NEW_VERSION"
+          echo "✅ Pushed commit for version $NEW_VERSION (tag will be created by CI after tests pass)"
 
       - name: Generate changelog
         uses: ./.github/actions/generate-changelog
@@ -121,6 +128,6 @@ jobs:
       - name: Release Summary
         run: |
           echo "🎉 Successfully released v$NEW_VERSION"
-          echo "📦 Published to crates.io: https://crates.io/crates/cargo-fmt-toml"
+          echo "📦 Published to crates.io: https://crates.io/crates/dotenvage"
           echo "📝 GitHub Release: https://github.com/${{ github.repository }}/releases/tag/v$NEW_VERSION"
-          echo "📚 Documentation: https://docs.rs/cargo-fmt-toml/$NEW_VERSION"
+          echo "📚 Documentation: https://docs.rs/dotenvage/$NEW_VERSION"
