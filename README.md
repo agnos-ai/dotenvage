@@ -378,6 +378,7 @@ guidelines.
 
 ## License
 
-Licensed under the MIT License. See
-[LICENSE](https://github.com/dataroadinc/dotenvage/blob/main/LICENSE) for
-details.
+Licensed under the Creative Commons Attribution-ShareAlike 4.0
+International License. See
+[LICENSE](https://github.com/dataroadinc/dotenvage/blob/main/LICENSE)
+for details.

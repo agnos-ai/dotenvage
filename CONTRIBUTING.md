@@ -1,19 +1,26 @@
 # Contributing to dotenvage
 
-Thank you for your interest in contributing to dotenvage! This document provides guidelines and instructions for setting up your development environment.
+Thank you for your interest in contributing to dotenvage! This
+document provides guidelines and instructions for setting up your
+development environment.
 
 ## Security-First Project
 
-⚠️ **Important**: dotenvage is a **security and cryptography tool** that handles sensitive data (encrypted secrets, API keys, passwords). This requires higher standards than typical projects:
+⚠️ **Important**: dotenvage is a **security and cryptography tool**
+that handles sensitive data (encrypted secrets, API keys, passwords).
+This requires higher standards than typical projects:
 
 - **All commits must be signed** - No exceptions for authenticity
-- **Zero tolerance for warnings** - Clippy must pass with `-D warnings`
+- **Zero tolerance for warnings** - Clippy must pass with
+  `-D warnings`
 - **Detailed commit history** - For audit trails and AI agent analysis
 - **Linear history only** - No merge commits, always rebase
-- **Comprehensive testing** - Security-critical code needs thorough tests
+- **Comprehensive testing** - Security-critical code needs thorough
+  tests
 - **Code review required** - All changes must be reviewed before merge
 
-These strict requirements protect users who trust us with their secrets.
+These strict requirements protect users who trust us with their
+secrets.
 
 ## Prerequisites
 
@@ -31,29 +38,35 @@ git clone https://github.com/dataroadinc/dotenvage.git
 cd dotenvage
 ```
 
-### 2. Run the Setup Script
+### 2. Build the Project
 
-**⚠️ IMPORTANT**: Run the setup script to install git hooks and verify your development environment:
+Build the project to install git hooks and verify your development
+environment:
 
 ```bash
-./scripts/setup-dev.sh
+cargo build
 ```
 
-This script will:
+This will:
 
-- Check for required tools (Rust, nightly toolchain, rustfmt, clippy)
-- Install git pre-commit hooks from `.cargo-husky/hooks/`
+- Install git hooks automatically via Sloughi (from `build.rs`)
 - Build the project
-- Run tests to verify everything works
+- Verify your Rust toolchain is set up correctly
 
-### 3. Manual Hook Installation (if needed)
+### 3. Git Hooks Installation
 
-If the setup script doesn't work, manually install the git hooks:
+Git hooks are automatically installed when you build the project using
+[Sloughi](https://crates.io/crates/sloughi). The `build.rs` script
+installs hooks from `.githooks/` directory.
+
+If hooks aren't installed, simply run:
 
 ```bash
-cp .cargo-husky/hooks/pre-commit .git/hooks/pre-commit
-chmod +x .git/hooks/pre-commit
+cargo build
 ```
+
+This will trigger the build script and install the hooks
+automatically.
 
 ## Git Hooks
 
@@ -64,7 +77,8 @@ The pre-commit hook enforces code quality by running:
    - Uses nightly for advanced rustfmt features
    - If this fails, run `cargo +nightly fmt` to fix
 
-2. **Clippy lints**: `cargo clippy --all-targets --all-features -- -D warnings`
+2. **Clippy lints**:
+   `cargo clippy --all-targets --all-features -- -D warnings`
    - Treats all warnings as errors
    - Enforces documentation on public items
    - Checks for common mistakes and code smells
@@ -127,7 +141,8 @@ cargo clippy --fix --all-targets --all-features
 - Follow Rust standard style guidelines
 - Use `cargo +nightly fmt` for formatting
 - All public items must have documentation
-- Include `# Errors`, `# Panics`, and `# Safety` sections where applicable
+- Include `# Errors`, `# Panics`, and `# Safety` sections where
+  applicable
 - Write tests for new functionality
 - Update README and examples when adding features
 
@@ -135,7 +150,8 @@ cargo clippy --fix --all-targets --all-features
 
 ### Commit Signing
 
-**All commits must be signed.** This ensures authenticity and integrity of the code.
+**All commits must be signed.** This ensures authenticity and
+integrity of the code.
 
 To set up commit signing:
 
@@ -149,11 +165,13 @@ git config --global gpg.format ssh
 git config --global user.signingkey ~/.ssh/id_ed25519.pub
 ```
 
-See GitHub's guide: [Signing commits](https://docs.github.com/en/authentication/managing-commit-signature-verification/signing-commits)
+See GitHub's guide:
+[Signing commits](https://docs.github.com/en/authentication/managing-commit-signature-verification/signing-commits)
 
 ### Conventional Commits
 
-We follow [Conventional Commits](https://www.conventionalcommits.org/) with **detailed multi-line commit messages**.
+We follow [Conventional Commits](https://www.conventionalcommits.org/)
+with **detailed multi-line commit messages**.
 
 Commit types:
 
@@ -166,7 +184,8 @@ Commit types:
 
 ### Detailed Commit Messages
 
-**Use multiple `-m` flags** to create detailed commit messages with bullet points:
+**Use multiple `-m` flags** to create detailed commit messages with
+bullet points:
 
 ```bash
 git commit \
@@ -180,9 +199,12 @@ git commit \
 
 **Why detailed commits matter:**
 
-1. **Better changelogs**: CI automatically generates release notes from commits
-2. **AI agent context**: Subsequent AI agents can understand changes by reading `git log`
-3. **Code archaeology**: Makes it easier to understand why changes were made
+1. **Better changelogs**: CI automatically generates release notes
+   from commits
+2. **AI agent context**: Subsequent AI agents can understand changes
+   by reading `git log`
+3. **Code archaeology**: Makes it easier to understand why changes
+   were made
 4. **Review clarity**: Reviewers can see exactly what changed and why
 
 The **first `-m`** is the conventional commit title (max 72 chars).  
@@ -206,14 +228,14 @@ git commit -m "docs: fix typo in README"
 git commit -m "fix stuff"
 ```
 
-## Testing
+## Writing Tests
 
 - Write unit tests for new functions
 - Write integration tests for CLI commands
 - Ensure all tests pass before submitting PR
 - Test both encrypted and plaintext scenarios
 
-## Documentation
+## Writing Documentation
 
 When adding new public APIs:
 
@@ -254,20 +276,24 @@ We maintain a **strictly linear commit history** on `main`:
 2. Create a feature branch from `main`
 3. Make your changes with detailed commits
 4. Keep your branch up to date by rebasing on `main`:
+
    ```bash
    git fetch upstream
    git rebase upstream/main
    ```
+
 5. Ensure all tests pass and hooks succeed
 6. Push to your fork (use `--force-with-lease` after rebasing)
 7. Submit a pull request
 
 ### Merge Strategy
 
-PRs will be merged using **rebase and merge** (not squash, not merge commit):
+PRs will be merged using **rebase and merge** (not squash, not merge
+commit):
 
 - Your individual commits will be preserved in `main`
-- This maintains detailed history for changelog generation and AI agent context
+- This maintains detailed history for changelog generation and AI
+  agent context
 - Make sure each commit is clean and well-documented before submitting
 
 ### PR Checklist
@@ -289,4 +315,6 @@ PRs will be merged using **rebase and merge** (not squash, not merge commit):
 
 ## License
 
-By contributing, you agree that your contributions will be licensed under the MIT License.
+By contributing, you agree that your contributions will be licensed
+under the Creative Commons Attribution-ShareAlike 4.0 International
+License.

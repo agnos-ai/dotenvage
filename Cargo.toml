@@ -16,7 +16,6 @@ publish = true
 
 exclude = [
     ".cargo/",
-    ".cargo-husky/",
     ".clippy.toml",
     ".cursor/",
     ".github/",
