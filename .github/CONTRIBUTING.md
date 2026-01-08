@@ -1,13 +1,15 @@
 # Contributing to dotenvage
 
-Thank you for your interest in contributing! This project
-uses [Conventional Commits](https://www.conventionalcommits.org/)
-and [Cocogitto](https://github.com/cocogitto/cocogitto) for
-automated changelog generation.
+Thank you for your interest in contributing! This project uses
+[Angular Conventional Commits](https://github.com/angular/angular/blob/main/CONTRIBUTING.md#commit)
+(also known as the
+[Conventional Commits](https://www.conventionalcommits.org/)
+specification) and [Cocogitto](https://github.com/cocogitto/cocogitto)
+for automated changelog generation.
 
 ## Commit Message Format
 
-We follow the Conventional Commits specification. Each
+We follow the **Angular Conventional Commits** specification. Each
 commit message should be structured as follows:
 
 ```text
@@ -26,17 +28,16 @@ commit message should be structured as follows:
 - **refactor**: Code refactoring (appears in changelog)
 - **perf**: Performance improvements (appears in changelog)
 - **build**: Changes to build system (appears in changelog)
-- **revert**: Reverts a previous commit (appears in
-  changelog)
+- **revert**: Reverts a previous commit (appears in changelog)
 - **style**: Code style changes (omitted from changelog)
-- **test**: Adding or updating tests (omitted from
-  changelog)
+- **test**: Adding or updating tests (omitted from changelog)
 - **ci**: CI/CD changes (omitted from changelog)
 - **chore**: Other changes (omitted from changelog)
 
 ### Scope (Optional)
 
 The scope provides additional context:
+
 - `loader`: Changes to the env loader
 - `manager`: Changes to the secret manager
 - `cli`: Changes to the CLI
@@ -70,8 +71,8 @@ ci: update GitHub Actions workflow
 
 ## Breaking Changes
 
-For breaking changes, add `!` after the type/scope and
-include a `BREAKING CHANGE:` section in the footer:
+For breaking changes, add `!` after the type/scope and include a
+`BREAKING CHANGE:` section in the footer:
 
 ```bash
 feat!: change default key location
@@ -108,7 +109,7 @@ git checkout -b fix/bug-description
 
 ### 4. Commit Changes
 
-Use conventional commit format:
+Use Angular Conventional Commits format:
 
 ```bash
 git add .
@@ -132,8 +133,7 @@ Then create a Pull Request on GitHub.
 
 ## Releasing a New Version
 
-Only maintainers can release new versions. The process is
-automated:
+Only maintainers can release new versions. The process is automated:
 
 ### 1. Update Version in Cargo.toml
 
@@ -152,30 +152,28 @@ git push origin main
 
 ### 3. Automatic Release Process
 
-When the version in `Cargo.toml` changes, the CI workflow
-will automatically:
+When the version in `Cargo.toml` changes, the CI workflow will
+automatically:
 
 1. ✅ Run all checks (format, clippy, build, test)
-2. 📝 Generate changelog using Cocogitto (from
-   conventional commits)
+2. 📝 Generate changelog using Cocogitto (from conventional commits)
 3. 📌 Create a git tag (e.g., `v0.0.2`)
 4. 🎉 Create a GitHub Release with the changelog
 5. 📦 Publish to crates.io
 
-**No manual tagging required!** The workflow detects
-version changes and handles everything.
+**No manual tagging required!** The workflow detects version changes
+and handles everything.
 
 ## Changelog Generation
 
-The changelog is generated automatically from commit
-messages:
+The changelog is generated automatically from commit messages:
 
-- **Included**: `feat`, `fix`, `docs`, `refactor`, `perf`,
-  `build`, `revert`
+- **Included**: `feat`, `fix`, `docs`, `refactor`, `perf`, `build`,
+  `revert`
 - **Excluded**: `style`, `test`, `ci`, `chore`
 
-This encourages meaningful commit messages and creates a
-clean, user-focused changelog.
+This encourages meaningful commit messages and creates a clean,
+user-focused changelog.
 
 ## Code Review
 
@@ -185,7 +183,7 @@ All contributions go through code review:
 - Follow Rust best practices
 - Add tests for new features
 - Update documentation
-- Use conventional commit format
+- Use Angular Conventional Commits format
 
 ## Questions?
 

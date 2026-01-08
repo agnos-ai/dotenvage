@@ -168,10 +168,13 @@ git config --global user.signingkey ~/.ssh/id_ed25519.pub
 See GitHub's guide:
 [Signing commits](https://docs.github.com/en/authentication/managing-commit-signature-verification/signing-commits)
 
-### Conventional Commits
+### Angular Conventional Commits
 
-We follow [Conventional Commits](https://www.conventionalcommits.org/)
-with **detailed multi-line commit messages**.
+We follow
+[Angular Conventional Commits](https://github.com/angular/angular/blob/main/CONTRIBUTING.md#commit)
+(also known as the
+[Conventional Commits](https://www.conventionalcommits.org/)
+specification) with **detailed multi-line commit messages**.
 
 Commit types:
 
