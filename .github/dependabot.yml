@@ -1,5 +1,5 @@
 # Dependabot configuration for automated dependency updates
-# Updates are grouped and scheduled weekly (Monday 2 AM UTC)
+# Updates are grouped and scheduled weekly (Sunday 10 PM UTC)
 # See: https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
 
 version: 2
@@ -8,9 +8,9 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
-      day: "monday"
-      time: "02:00"
-      timezone: "UTC"
+      day: "sunday"
+      time: "22:00"
+      timezone: "Etc/UTC"
     # Group all dependency updates into a single PR
     groups:
       all-dependencies:
@@ -42,9 +42,9 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
-      day: "monday"
-      time: "02:00"
-      timezone: "UTC"
+      day: "sunday"
+      time: "22:00"
+      timezone: "Etc/UTC"
     groups:
       github-actions:
         patterns:
