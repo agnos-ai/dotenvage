@@ -365,9 +365,17 @@ jobs:
       - name: Download all npm .node file artifacts
         uses: actions/download-artifact@v4
         with:
-          path: npm/
           pattern: npm-node-files-*
           merge-multiple: true
+          path: npm-artifacts/
+      - name: Copy .node files to npm directory
+        run: |
+          # Artifacts contain npm/*.node structure, copy files to npm/
+          if [ -d "npm-artifacts/npm" ]; then
+            cp npm-artifacts/npm/*.node npm/ 2>/dev/null || true
+          fi
+          # Also check if files are directly in npm-artifacts
+          find npm-artifacts -name "*.node" -exec cp {} npm/ \;
 
       - name: Install npm dependencies
         working-directory: npm
