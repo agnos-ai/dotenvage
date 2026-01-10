@@ -216,6 +216,30 @@ See the
 [main dotenvage README](https://github.com/dataroadinc/dotenvage#usage)
 for full CLI documentation.
 
+## Next.js Integration
+
+For Next.js applications, use the dedicated integration utilities:
+
+```typescript
+// In next.config.mjs
+import { loadEnv } from "@dotenvage/node/nextjs";
+loadEnv();
+```
+
+Or use the pre-initialization loader to ensure environment variables
+are available for Edge Runtime (middleware):
+
+```json
+{
+  "scripts": {
+    "dev": "node -r @dotenvage/node/nextjs/preinit node_modules/.bin/next dev"
+  }
+}
+```
+
+See [`nextjs/README.md`](./nextjs/README.md) for complete Next.js
+integration documentation.
+
 ## TypeScript Examples
 
 See the `examples/` directory for TypeScript examples:
@@ -224,7 +248,7 @@ See the `examples/` directory for TypeScript examples:
 - `encrypt-decrypt.ts` - Encryption and decryption
 - `app-config.ts` - Type-safe application configuration
 - `auto-encrypt.ts` - Auto-detection patterns
-- `nextjs-config.ts` - Next.js integration
+- `nextjs-config.ts` - Basic Next.js usage example
 
 ## File Layering
 

@@ -96,7 +96,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version-file: ".nvmrc"
           cache: "pnpm"
           cache-dependency-path: npm/pnpm-lock.yaml
       - name: Install Rust (for NAPI build)
@@ -243,40 +243,13 @@ jobs:
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO }}
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v3
-        with:
-          version: 8
-      - name: Setup Node.js for npm publish
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          registry-url: "https://registry.npmjs.org"
-
-      - name: Install Rust (for NAPI build)
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Install npm dependencies
-        working-directory: npm
-        run: pnpm install
-
-      - name: Build NAPI bindings for all platforms
-        working-directory: npm
-        run: pnpm run build:all
-
-      - name: Publish to npmjs.org
-        working-directory: npm
-        run: pnpm publish --access public --no-git-checks
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
       - name: Release Summary
         run: |
           echo "🎉 Successfully released v${{ needs.version-check.outputs.new_version }}"
           echo "📦 Published to crates.io: https://crates.io/crates/dotenvage"
-          echo "📦 Published to npmjs.org: https://www.npmjs.com/package/@dotenvage/node"
           echo "📝 GitHub Release: https://github.com/dataroadinc/dotenvage/releases/tag/v${{ needs.version-check.outputs.new_version }}"
           echo "📚 Documentation: https://docs.rs/dotenvage/${{ needs.version-check.outputs.new_version }}"
+          echo "📦 npm package will be published after platform builds complete"
 
   build-and-upload-binaries:
     name: Build and Upload Binaries
@@ -336,3 +309,117 @@ jobs:
           manifest_path: Cargo.toml
           ref: refs/tags/v${{ needs.version-check.outputs.new_version }}
           zip: "all"
+
+      # Build npm NAPI bindings for this platform
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 8
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+      - name: Install npm dependencies
+        working-directory: npm
+        run: pnpm install
+      - name: Build NAPI bindings for platform
+        working-directory: npm
+        run: |
+          napi build \
+            --manifest-path ./dotenvage-napi/Cargo.toml \
+            --output-dir . \
+            --platform \
+            --release \
+            --target ${{ matrix.platform.target }}
+      - name: Upload npm .node file artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-node-files-${{ matrix.platform.target }}
+          path: npm/*.node
+          retention-days: 1
+          if-no-files-found: error
+
+  # Publish npm package with all platform .node files
+  publish-npm:
+    name: Publish NPM Package
+    runs-on: ubuntu-latest
+    needs: [build-and-upload-binaries, version-check]
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: refs/tags/v${{ needs.version-check.outputs.new_version }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 8
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Download all npm .node file artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: npm/
+          pattern: npm-node-files-*
+          merge-multiple: true
+
+      - name: Install npm dependencies
+        working-directory: npm
+        run: pnpm install
+
+      - name: Verify all platform .node files are present
+        working-directory: npm
+        run: |
+          echo "Verifying .node files:"
+          ls -lh *.node || echo "No .node files found"
+          NODE_COUNT=$(find . -name "*.node" | wc -l | tr -d ' ')
+          echo "Found $NODE_COUNT .node file(s)"
+          if [ "$NODE_COUNT" -lt 5 ]; then
+            echo "⚠️  Warning: Expected more .node files (found $NODE_COUNT)"
+          fi
+
+      - name: Publish to npmjs.org
+        working-directory: npm
+        run: pnpm publish --access public --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish Summary
+        run: |
+          echo "✅ Published npm package: https://www.npmjs.com/package/@dotenvage/node"
+          echo "Version: ${{ needs.version-check.outputs.new_version }}"
+
+      # Build npm NAPI bindings for this platform
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 8
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+      - name: Install npm dependencies
+        working-directory: npm
+        run: pnpm install
+      - name: Build NAPI bindings for platform
+        working-directory: npm
+        run: |
+          napi build \
+            --manifest-path ./dotenvage-napi/Cargo.toml \
+            --output-dir . \
+            --platform \
+            --release \
+            --target ${{ matrix.platform.target }}
+      - name: Upload npm .node file artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-node-files-${{ matrix.platform.target }}
+          path: npm/*.node
+          retention-days: 1
+          if-no-files-found: error

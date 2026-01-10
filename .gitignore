@@ -6,8 +6,16 @@ CHANGELOG.md
 # Node.js dependencies
 node_modules/
 npm/node_modules/
+
+# NAPI build artifacts
 *.node
+npm/dotenvage-napi/*.js
+npm/dotenvage-napi/*.d.ts
+npm/dotenvage-napi/*.node
+
+# Log files
 *.log
-pnpm-lock.yaml
+
+# Lock files (keep pnpm-lock.yaml for npm package)
 package-lock.json
 yarn.lock

@@ -7,8 +7,8 @@ use dotenvage::{
     EnvLoader,
     SecretManager,
 };
-use napi::JsUndefined;
 use napi::bindgen_prelude::*;
+use napi_derive::napi;
 
 /// Wrapper for SecretManager in Node.js
 #[napi]
@@ -108,20 +108,20 @@ impl JsEnvLoader {
     /// Loads `.env` files from the current directory in standard order
     /// Decrypted values are loaded into the process environment
     #[napi]
-    pub fn load(&self) -> Result<JsUndefined> {
+    pub fn load(&self) -> Result<()> {
         self.inner
             .load()
             .map_err(|e| Error::new(Status::GenericFailure, format!("{}", e)))?;
-        Ok(Env::get_undefined()?)
+        Ok(())
     }
 
     /// Loads `.env` files from a specific directory using the same order
     #[napi]
-    pub fn load_from_dir(&self, dir: String) -> Result<JsUndefined> {
+    pub fn load_from_dir(&self, dir: String) -> Result<()> {
         self.inner
             .load_from_dir(Path::new(&dir))
             .map_err(|e| Error::new(Status::GenericFailure, format!("{}", e)))?;
-        Ok(Env::get_undefined()?)
+        Ok(())
     }
 
     /// Gets all variable names from all loaded `.env` files
@@ -155,7 +155,7 @@ impl JsEnvLoader {
     /// Gets all environment variables as a map (decrypted)
     /// Note: This loads variables into the process environment first
     #[napi]
-    pub fn get_all_variables(&self) -> Result<Object> {
+    pub fn get_all_variables(&self) -> Result<std::collections::HashMap<String, String>> {
         // First load into environment
         self.inner
             .load()
@@ -166,24 +166,25 @@ impl JsEnvLoader {
             .get_all_variable_names()
             .map_err(|e| Error::new(Status::GenericFailure, format!("{}", e)))?;
 
-        // Create a new Env context
-        let env = Env::current()?;
-        let result = env.create_object()?;
-
+        // Collect variables into a HashMap
+        let mut vars: std::collections::HashMap<String, String> = std::collections::HashMap::new();
         for name in names {
             if let Ok(value) = std::env::var(&name) {
-                result.set(name.as_str(), env.create_string(&value)?)?;
+                vars.insert(name, value);
             }
         }
 
-        Ok(result)
+        Ok(vars)
     }
 
     /// Gets all environment variables from a specific directory as a map
     /// (decrypted) Note: This loads variables into the process environment
     /// first
     #[napi]
-    pub fn get_all_variables_from_dir(&self, dir: String) -> Result<Object> {
+    pub fn get_all_variables_from_dir(
+        &self,
+        dir: String,
+    ) -> Result<std::collections::HashMap<String, String>> {
         // First load into environment
         self.inner
             .load_from_dir(Path::new(&dir))
@@ -194,17 +195,15 @@ impl JsEnvLoader {
             .get_all_variable_names_from_dir(Path::new(&dir))
             .map_err(|e| Error::new(Status::GenericFailure, format!("{}", e)))?;
 
-        // Create a new Env context
-        let env = Env::current()?;
-        let result = env.create_object()?;
-
+        // Collect variables into a HashMap
+        let mut vars: std::collections::HashMap<String, String> = std::collections::HashMap::new();
         for name in names {
             if let Ok(value) = std::env::var(&name) {
-                result.set(name.as_str(), env.create_string(&value)?)?;
+                vars.insert(name, value);
             }
         }
 
-        Ok(result)
+        Ok(vars)
     }
 }
 

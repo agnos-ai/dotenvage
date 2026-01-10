@@ -12,13 +12,34 @@
     "index.d.ts",
     "bin/",
     "*.node",
-    "README.md"
+    "README.md",
+    "examples/",
+    "nextjs/"
   ],
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./index.js"
+    },
+    "./nextjs": {
+      "types": "./nextjs/loader.d.ts",
+      "default": "./nextjs/loader.mjs"
+    },
+    "./nextjs/preinit": {
+      "types": "./nextjs/preinit.d.ts",
+      "default": "./nextjs/preinit.mjs"
+    },
+    "./nextjs/config": {
+      "types": "./nextjs/config.d.ts",
+      "default": "./nextjs/config.mjs"
+    },
+    "./package.json": "./package.json"
+  },
   "scripts": {
-    "build": "napi build --platform --release",
-    "build:debug": "napi build --platform",
-    "build:all": "napi build --all-platforms --release",
-    "prepublishOnly": "npm run build:all",
+    "build": "napi build --manifest-path ./dotenvage-napi/Cargo.toml --output-dir . --platform --release",
+    "build:debug": "napi build --manifest-path ./dotenvage-napi/Cargo.toml --output-dir . --platform",
+    "build:all": "./scripts/build-all.sh",
+    "prepublishOnly": "npm run build",
     "test": "node --test __tests__/*.test.js",
     "test:unit": "node --test __tests__/basic.test.js __tests__/secret-manager.test.js __tests__/env-loader.test.js",
     "test:integration": "node --test __tests__/integration.test.js",
@@ -35,7 +56,7 @@
     "nodejs"
   ],
   "author": "Jacobus Geluk <jacobus@dataroad.com>",
-  "license": "MIT",
+  "license": "CC-BY-SA-4.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/dataroadinc/dotenvage.git",
@@ -49,24 +70,21 @@
     "node": ">=18.0.0"
   },
   "napi": {
-    "name": "dotenvage-napi",
-    "triples": {
-      "defaults": true,
-      "additional": [
-        "x86_64-unknown-linux-gnu",
-        "x86_64-unknown-linux-musl",
-        "aarch64-unknown-linux-gnu",
-        "aarch64-unknown-linux-musl",
-        "x86_64-apple-darwin",
-        "aarch64-apple-darwin",
-        "x86_64-pc-windows-msvc",
-        "aarch64-pc-windows-msvc",
-        "i686-pc-windows-msvc"
-      ]
-    }
+    "binaryName": "dotenvage-napi",
+    "targets": [
+      "x86_64-unknown-linux-gnu",
+      "x86_64-unknown-linux-musl",
+      "aarch64-unknown-linux-gnu",
+      "aarch64-unknown-linux-musl",
+      "x86_64-apple-darwin",
+      "aarch64-apple-darwin",
+      "x86_64-pc-windows-msvc",
+      "aarch64-pc-windows-msvc",
+      "i686-pc-windows-msvc"
+    ]
   },
   "devDependencies": {
-    "@napi-rs/cli": "^2.18.0",
+    "@napi-rs/cli": "^3.5.1",
     "@types/node": "^20.0.0",
     "typescript": "^5.0.0"
   }
