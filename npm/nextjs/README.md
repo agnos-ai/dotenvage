@@ -26,13 +26,55 @@ We leverage the fact that `@next/env` **does not overwrite** existing
 2. When `@next/env` runs, it sees existing values and preserves them
 3. Decrypted values are available for Next.js to inline into the build
 
+## Quick Start
+
+**For Edge Runtime (middleware) support (recommended):**
+
+Use the `dotenvage-next` bin script to start Next.js:
+
+```json
+{
+  "scripts": {
+    "dev": "dotenvage-next dev",
+    "build": "dotenvage-next build"
+  }
+}
+```
+
+And wrap your config:
+
+```javascript
+import { withDotenvage } from "@dotenvage/node/nextjs/config";
+
+export default withDotenvage({
+  // Your Next.js config
+});
+```
+
+**For server-side only (no Edge Runtime):**
+
+Use `loadEnv()` in your config file:
+
+```javascript
+import { loadEnv } from "@dotenvage/node/nextjs";
+
+loadEnv();
+
+export default {
+  // Your Next.js config
+};
+```
+
 ## Files
 
-### `config.mjs` (Recommended)
+### `config.mjs`
 
-A configuration wrapper that automatically loads encrypted environment
-variables. This is the simplest way to integrate dotenvage with
-Next.js.
+A configuration wrapper for API consistency. This is mainly for
+convenience when using the `dotenvage-next` wrapper script.
+
+**Note:** For Edge Runtime (middleware) support, you MUST use the
+`dotenvage-next` wrapper script. For server-side only (no Edge
+Runtime), you can use `loadEnv()` directly (see `loader.mjs` below).
 
 **Usage in `next.config.mjs`:**
 
@@ -51,29 +93,42 @@ const withMDX = nextMDX({
 export default withDotenvage(withMDX(nextConfig));
 ```
 
-**Note:** For full Edge Runtime (middleware) support where
-`NEXT_PUBLIC_*` variables need to be inlined, you still need to use
-`NODE_OPTIONS` (see below). The config wrapper handles server-side
-code automatically.
+**Note:** When using `dotenvage-next` wrapper script, env vars are
+already loaded, so this wrapper is just a pass-through for
+consistency.
 
-### `nextjs-loader.mjs`
+### `loader.mjs` (For server-side only, no Edge Runtime)
 
-A standard loader for use in `next.config.mjs` or other Node.js
-runtime contexts. Use this when you don't need to pre-load before
-Next.js starts.
+A standard loader for use in `next.config.mjs` when you don't use Edge
+Runtime (middleware). Use this when you only need server-side code to
+access encrypted environment variables.
 
-**Usage in `next.config.mjs`:**
+**Important:** This works for server-side code (API routes, server
+components) because `loadEnv()` runs in `next.config.mjs` and can
+decrypt values before server-side code accesses them. However, it does
+NOT work for Edge Runtime (middleware) because Next.js inlines
+`NEXT_PUBLIC_*` variables at build time, BEFORE `next.config.mjs`
+runs.
+
+For Edge Runtime support, you MUST use the `dotenvage-next` wrapper
+script.
+
+**Usage in `next.config.mjs` (server-side only):**
 
 ```javascript
 import { loadEnv } from "@dotenvage/node/nextjs";
 
-// Load environment variables early
+// Load and decrypt environment variables
 loadEnv();
 
 export default {
   // Your Next.js config
 };
 ```
+
+**Note:** When using `loadEnv()` in the config file, `@next/env` will
+have already loaded encrypted values, but `loadEnv()` overwrites them
+with decrypted values, so server-side code sees the decrypted values.
 
 ### `nextjs-preinit.mjs`
 
