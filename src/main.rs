@@ -185,8 +185,14 @@ fn main() -> Result<()> {
 }
 
 fn keygen(output: Option<PathBuf>, force: bool) -> Result<()> {
+    // Discover AGE_KEY_NAME from .env files first to determine key location
+    // This allows keygen to respect project-specific key paths
+    SecretManager::discover_age_key_name_from_env_files()
+        .context("Failed to discover AGE_KEY_NAME from .env files")?;
+
     let manager = SecretManager::generate().context("Failed to generate key")?;
-    let out = output.unwrap_or_else(SecretManager::default_key_path);
+    // Use key_path_from_env_or_default() to respect AGE_KEY_NAME if discovered
+    let out = output.unwrap_or_else(SecretManager::key_path_from_env_or_default);
     if out.exists() && !force {
         anyhow::bail!(
             "Key file already exists at {}. Use --force to overwrite.",
@@ -209,7 +215,11 @@ fn encrypt(file: PathBuf, keys: Option<Vec<String>>, auto: bool) -> Result<()> {
     let mut vars = parse_env_file(&content)?;
     let mut encrypted_count = 0;
     let keys_to_encrypt: Vec<String> = if let Some(specific) = keys {
+        // Filter out AGE key variables even when explicitly provided
         specific
+            .into_iter()
+            .filter(|k| !AutoDetectPatterns::is_age_key_variable(k))
+            .collect()
     } else if auto {
         vars.keys()
             .filter(|k| AutoDetectPatterns::should_encrypt(k))
@@ -262,7 +272,11 @@ fn edit(file: PathBuf) -> Result<()> {
     let mut keys_to_encrypt = Vec::new();
     for (key, value) in &mut vars {
         if SecretManager::is_encrypted(value) {
-            keys_to_encrypt.push(key.clone());
+            // Don't track AGE key variables for re-encryption - they should remain
+            // plaintext
+            if !AutoDetectPatterns::is_age_key_variable(key) {
+                keys_to_encrypt.push(key.clone());
+            }
             *value = manager
                 .decrypt_value(value)
                 .with_context(|| format!("Failed to decrypt {}", key))?;
@@ -289,6 +303,11 @@ fn edit(file: PathBuf) -> Result<()> {
     }
     let mut edited_vars = parse_env_file(&edited)?;
     for key in &keys_to_encrypt {
+        // Double-check: never encrypt AGE key variables (shouldn't be in list, but be
+        // safe)
+        if AutoDetectPatterns::is_age_key_variable(key) {
+            continue;
+        }
         if let Some(value) = edited_vars.get_mut(key)
             && !SecretManager::is_encrypted(value)
         {
@@ -312,7 +331,11 @@ fn set(pair: String, file: PathBuf) -> Result<()> {
     } else {
         HashMap::new()
     };
-    let final_value = if AutoDetectPatterns::should_encrypt(key) {
+    // Never encrypt AGE key variables - they must remain plaintext for
+    // configuration
+    let final_value = if !AutoDetectPatterns::is_age_key_variable(key)
+        && AutoDetectPatterns::should_encrypt(key)
+    {
         manager
             .encrypt_value(value)
             .context("Failed to encrypt value")?

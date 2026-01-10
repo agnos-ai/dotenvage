@@ -1090,6 +1090,8 @@ impl AutoDetectPatterns {
     /// This checks the variable name against
     /// [`ENCRYPT_PATTERNS`](Self::ENCRYPT_PATTERNS)
     /// and [`NEVER_ENCRYPT`](Self::NEVER_ENCRYPT) lists.
+    /// AGE key variables (like `EKG_AGE_KEY_NAME`, `AGE_KEY_NAME`, etc.) are
+    /// never encrypted as they are used for configuration.
     ///
     /// # Examples
     ///
@@ -1099,12 +1101,49 @@ impl AutoDetectPatterns {
     /// assert!(AutoDetectPatterns::should_encrypt("STRIPE_API_KEY"));
     /// assert!(AutoDetectPatterns::should_encrypt("github_token"));
     /// assert!(!AutoDetectPatterns::should_encrypt("DATABASE_NAME"));
+    /// assert!(!AutoDetectPatterns::should_encrypt("EKG_AGE_KEY_NAME"));
+    /// assert!(!AutoDetectPatterns::should_encrypt("AGE_KEY_NAME"));
     /// ```
     pub fn should_encrypt(key: &str) -> bool {
+        // Never encrypt AGE key variables - these are configuration values
+        // that must remain plaintext
+        if Self::is_age_key_variable(key) {
+            return false;
+        }
+
         let key_upper = key.to_uppercase();
         if Self::NEVER_ENCRYPT.iter().any(|p| key_upper.contains(p)) {
             return false;
         }
         Self::ENCRYPT_PATTERNS.iter().any(|p| key_upper.contains(p))
+    }
+
+    /// Check if a variable name is an AGE key variable that should never be
+    /// encrypted.
+    ///
+    /// AGE key variables are used for configuration and must remain plaintext.
+    /// This includes:
+    /// - `DOTENVAGE_AGE_KEY`
+    /// - `AGE_KEY`
+    /// - `EKG_AGE_KEY`
+    /// - `AGE_KEY_NAME`
+    /// - Any variable ending with `_AGE_KEY_NAME` (e.g., `EKG_AGE_KEY_NAME`)
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use dotenvage::AutoDetectPatterns;
+    ///
+    /// assert!(AutoDetectPatterns::is_age_key_variable("EKG_AGE_KEY_NAME"));
+    /// assert!(AutoDetectPatterns::is_age_key_variable("AGE_KEY_NAME"));
+    /// assert!(AutoDetectPatterns::is_age_key_variable("DOTENVAGE_AGE_KEY"));
+    /// assert!(!AutoDetectPatterns::is_age_key_variable("API_KEY"));
+    /// ```
+    pub fn is_age_key_variable(key: &str) -> bool {
+        let key_upper = key.to_uppercase();
+        matches!(
+            key_upper.as_str(),
+            "DOTENVAGE_AGE_KEY" | "AGE_KEY" | "EKG_AGE_KEY" | "AGE_KEY_NAME"
+        ) || key_upper.ends_with("_AGE_KEY_NAME")
     }
 }

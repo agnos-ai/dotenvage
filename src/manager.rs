@@ -389,7 +389,7 @@ impl SecretManager {
         // FIRST: Try to discover AGE_KEY_NAME from .env files before doing anything
         // else This allows project-specific key discovery from .env
         // configuration
-        Self::discover_age_key_name_from_env_files();
+        Self::discover_age_key_name_from_env_files()?;
 
         if let Ok(data) = std::env::var("DOTENVAGE_AGE_KEY") {
             return Self::load_from_string(&data);
@@ -421,29 +421,59 @@ impl SecretManager {
     /// Priority order for .env files:
     /// 1. .env.local
     /// 2. .env
-    fn discover_age_key_name_from_env_files() {
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if an AGE key name variable (e.g., `EKG_AGE_KEY_NAME`)
+    /// is found but encrypted. AGE key name variables must be plaintext because
+    /// they are needed for key discovery, which happens before decryption.
+    pub fn discover_age_key_name_from_env_files() -> SecretsResult<()> {
         // Skip if AGE_KEY_NAME is already set in environment
         if std::env::var("AGE_KEY_NAME").is_ok() {
-            return;
+            return Ok(());
         }
 
         // Try to read .env.local first, then .env
         let env_files = [".env.local", ".env"];
 
         for env_file in &env_files {
-            if let Some(key_name) = Self::find_age_key_name_in_file(env_file) {
-                unsafe {
-                    std::env::set_var("AGE_KEY_NAME", key_name);
+            match Self::find_age_key_name_in_file(env_file)? {
+                Some(key_name) => {
+                    unsafe {
+                        std::env::set_var("AGE_KEY_NAME", key_name);
+                    }
+                    return Ok(());
                 }
-                return;
+                None => continue,
             }
         }
+
+        Ok(())
     }
 
     /// Searches a single .env file for AGE_KEY_NAME or *_AGE_KEY_NAME
     /// variables.
-    fn find_age_key_name_in_file(file_path: &str) -> Option<String> {
-        let content = std::fs::read_to_string(file_path).ok()?;
+    ///
+    /// Returns `Some(plaintext_value)` if a plaintext AGE key name variable
+    /// is found, `None` if no AGE key name variable is found, or an error if
+    /// an encrypted AGE key name variable is found.
+    ///
+    /// **Important**: AGE key name variables (e.g., `EKG_AGE_KEY_NAME`) must
+    /// be plaintext because they are needed for key discovery, which happens
+    /// before decryption is possible. If an encrypted AGE key name variable
+    /// is found, this function returns an error.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if an AGE key name variable is found but encrypted.
+    /// The error message includes the variable name and file path to help
+    /// identify and fix the issue.
+    fn find_age_key_name_in_file(file_path: &str) -> SecretsResult<Option<String>> {
+        let content = std::fs::read_to_string(file_path).ok();
+
+        let Some(content) = content else {
+            return Ok(None);
+        };
 
         for line in content.lines() {
             let line = line.trim();
@@ -454,17 +484,29 @@ impl SecretManager {
             }
 
             // Look for KEY_NAME=value patterns
-            let (key, value) = line.split_once('=')?;
+            let Some((key, value)) = line.split_once('=') else {
+                continue;
+            };
             let key = key.trim();
             let value = value.trim().trim_matches('"').trim_matches('\'');
 
             // Check for AGE_KEY_NAME or *_AGE_KEY_NAME pattern
             if (key == "AGE_KEY_NAME" || key.ends_with("_AGE_KEY_NAME")) && !value.is_empty() {
-                return Some(value.to_string());
+                // AGE key name variables must be plaintext - they are needed for key discovery
+                if Self::is_encrypted(value) {
+                    return Err(SecretsError::KeyLoadFailed(format!(
+                        "found encrypted AGE key name variable '{}' in {}: \
+                         AGE key name variables (e.g., EKG_AGE_KEY_NAME, AGE_KEY_NAME) must be \
+                         plaintext because they are used to discover the encryption key. \
+                         Please decrypt this variable or remove it from your .env file.",
+                        key, file_path
+                    )));
+                }
+                return Ok(Some(value.to_string()));
             }
         }
 
-        None
+        Ok(None)
     }
 
     fn load_from_file(path: &Path) -> SecretsResult<Self> {
