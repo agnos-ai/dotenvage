@@ -1,7 +1,7 @@
 # Publishing Guide
 
-This project uses a **version-change detection** workflow
-for automated publishing to crates.io.
+This project uses a **version-change detection** workflow for
+automated publishing to crates.io.
 
 ## Branch Protection & Linear History
 
@@ -17,17 +17,23 @@ This ensures a clean, linear git history.
 
 ## How Publishing Works
 
-The CI workflow automatically detects when the version in
-`Cargo.toml` changes and:
+The CI workflow automatically detects when the version in `Cargo.toml`
+changes and:
 
-1. ✅ Runs all checks (format, clippy, build, test)
-2. 📝 Generates changelog from conventional commits
-3. 📌 Creates and pushes a git tag (e.g., `v0.0.2`)
-4. 🎉 Creates a GitHub Release with generated changelog
-5. 📦 Publishes to crates.io
+1. ✅ Runs all checks (format, clippy, build, test, npm tests)
+2. ✅ Verifies version sync across Rust and npm packages
+3. 📝 Generates changelog from conventional commits
+4. 📌 Creates and pushes a git tag (e.g., `v0.0.2`)
+5. 🎉 Creates a GitHub Release with generated changelog
+6. 📦 Publishes to crates.io (Rust crate)
+7. 📦 Publishes to npmjs.org (`@dotenvage/node` package)
 
-**No manual tagging required!** Just bump the version in a
-PR and merge.
+**Lock-step releases**: The npm package version is automatically
+synced with the Rust crate version, ensuring both are published
+together with the same version number.
+
+**No manual tagging required!** Just bump the version in a PR and
+merge. Both packages will be published together.
 
 ## Setup (One-time)
 
@@ -45,15 +51,36 @@ PR and merge.
    - Go to:
      https://github.com/dataroadinc/dotenvage/settings/secrets/actions
    - Click "New repository secret"
-   - Name: `CRATES_IO_TOKEN`
-   - Value: `<your-token-here>`
+   - Name: `CRATES_IO` (or `CRATES_IO_TOKEN`)
+   - Value: `<your-crates-io-token>`
+
+### 2. Add npm Token to GitHub Secrets
+
+1. Get your npm API token:
+
+   ```bash
+   # Visit https://www.npmjs.com/settings/<your-username>/tokens
+   # Create a new "Automation" token with "Publish" permissions
+   # Or use an existing token with publish access
+   ```
+
+2. Add to GitHub repository secrets:
+   - Go to:
+     https://github.com/dataroadinc/dotenvage/settings/secrets/actions
+   - Click "New repository secret"
+   - Name: `NPM_TOKEN`
+   - Value: `<your-npm-token>`
+
+**Note**: Make sure you're logged into npm and have access to publish
+to the `@dotenvage` scope. If you need to create the
+organization/scope on npm, do that first.
 
 ## Publishing a New Version
 
 ### Step-by-Step Process (via Pull Request)
 
-Since the `main` branch is protected, all changes must go
-through pull requests:
+Since the `main` branch is protected, all changes must go through pull
+requests:
 
 ```bash
 # 1. Ensure you're on main and up to date
@@ -63,12 +90,19 @@ git pull origin main
 # 2. Create a feature branch for the version bump
 git checkout -b release/v0.0.2
 
-# 3. Update version in Cargo.toml
+# 3. Update version in Cargo.toml (npm versions sync automatically)
 vim Cargo.toml  # Change version = "0.0.1" to "0.0.2"
+
+# Or use cog to bump version (recommended - syncs all versions automatically):
+cog bump --patch  # or --minor, --major
+# This will automatically update:
+# - Cargo.toml (main crate)
+# - npm/dotenvage-napi/Cargo.toml (workspace member)
+# - npm/package.json (via sync script)
 
 # 4. Commit the version bump (using conventional
 #    commit format)
-git add Cargo.toml
+git add Cargo.toml Cargo.lock npm/package.json npm/dotenvage-napi/Cargo.toml package.json
 git commit -m "chore: bump version to 0.0.2"
 
 # 5. Push the branch to GitHub
@@ -83,17 +117,20 @@ gh pr create --title "chore: bump version to 0.0.2" \
 
 # 9. Watch the magic happen! ✨
 # After merging, GitHub Actions will automatically:
-#   - Run all checks
+#   - Run all checks (Rust + npm tests)
+#   - Verify version sync across all packages
 #   - Generate changelog from commits
 #   - Create git tag v0.0.2
 #   - Create GitHub Release
-#   - Publish to crates.io
+#   - Publish to crates.io (Rust crate)
+#   - Publish to npmjs.org (@dotenvage/node)
 ```
 
 ### What Gets Published
 
-The changelog will include all commits since the last
-version with types:
+The changelog will include all commits since the last version with
+types:
+
 - ✅ **feat**: New features
 - ✅ **fix**: Bug fixes
 - ✅ **docs**: Documentation changes
@@ -103,6 +140,7 @@ version with types:
 - ✅ **revert**: Reverted commits
 
 Excluded from changelog:
+
 - ❌ **style**: Code style changes
 - ❌ **test**: Test updates
 - ❌ **ci**: CI/CD changes
@@ -111,8 +149,7 @@ Excluded from changelog:
 ## Conventional Commits
 
 All commits should follow the
-[Conventional Commits](https://www.conventionalcommits.org/)
-format:
+[Conventional Commits](https://www.conventionalcommits.org/) format:
 
 ```bash
 <type>(<scope>): <subject>
@@ -159,14 +196,15 @@ BREAKING CHANGE: Default key path changed from
 
 After pushing your version bump:
 
-1. Go to:
-   https://github.com/dataroadinc/dotenvage/actions
+1. Go to: https://github.com/dataroadinc/dotenvage/actions
 2. Watch the "CI/CD" workflow
 3. The "Release" job will show:
+   - Version sync verification
    - Changelog generation
    - Tag creation
    - GitHub Release creation
-   - crates.io publication
+   - crates.io publication (Rust)
+   - npmjs.org publication (Node.js)
 
 ## Verification
 
@@ -176,40 +214,43 @@ After the workflow completes:
 # Check the new release
 open https://github.com/dataroadinc/dotenvage/releases
 
-# Check crates.io
+# Check crates.io (Rust crate)
 open https://crates.io/crates/dotenvage
 
-# Check documentation
+# Check npmjs.org (Node.js package)
+open https://www.npmjs.com/package/@dotenvage/node
+
+# Check documentation (Rust)
 open https://docs.rs/dotenvage
 
 # Pull the new tag locally
 git pull --tags
+
+# Verify npm package (optional)
+npm view @dotenvage/node version
 ```
 
 ## Version Bump Types
 
 - **Patch** (0.0.1 → 0.0.2): Bug fixes, minor improvements
-- **Minor** (0.0.1 → 0.1.0): New features, backwards
-  compatible
+- **Minor** (0.0.1 → 0.1.0): New features, backwards compatible
 - **Major** (0.0.1 → 1.0.0): Breaking changes
 
 ## Troubleshooting
 
 ### "Version hasn't changed"
 
-The workflow only runs when the version in `Cargo.toml`
-differs from the latest git tag.
+The workflow only runs when the version in `Cargo.toml` differs from
+the latest git tag.
 
-**Solution**: Make sure you actually bumped the version
-number.
+**Solution**: Make sure you actually bumped the version number.
 
 ### "Changelog is empty"
 
-If no conventional commits exist since the last tag, the
-changelog will be minimal.
+If no conventional commits exist since the last tag, the changelog
+will be minimal.
 
-**Solution**: Use conventional commit format for meaningful
-commits.
+**Solution**: Use conventional commit format for meaningful commits.
 
 ### "Tag already exists"
 
@@ -219,10 +260,24 @@ You can't publish the same version twice.
 
 ### "Authentication failed"
 
-The crates.io token is missing or invalid.
+The crates.io or npm token is missing or invalid.
 
-**Solution**: Check that `CRATES_IO_TOKEN` secret is set
-correctly in GitHub settings.
+**Solution**: Check that both `CRATES_IO_TOKEN` (or `CRATES_IO`) and
+`NPM_TOKEN` secrets are set correctly in GitHub settings. For npm,
+ensure your token has publish access to the `@dotenvage` scope.
+
+### "Version mismatch detected"
+
+The CI workflow verifies that all package versions are in sync. If you
+see this error, versions don't match across Rust and npm packages.
+
+**Solution**: Ensure all versions are synchronized:
+
+- Check `Cargo.toml`
+- Check `npm/package.json`
+- Check `npm/dotenvage-napi/Cargo.toml`
+- If using `cog bump --patch`, the pre_bump_hooks should sync
+  automatically via `scripts/sync-npm-version.sh`
 
 ### "CI checks failed"
 
@@ -233,12 +288,18 @@ The release won't happen if any check fails.
 ## First Release Checklist
 
 - [x] Version in `Cargo.toml` is `0.0.1`
+- [x] Version in `npm/package.json` is `0.0.1` (synced)
+- [x] Version in `npm/dotenvage-napi/Cargo.toml` is `0.0.1`
 - [x] `LICENSE` file exists
 - [x] `README.md` is complete
-- [x] All tests pass locally (`cargo test`)
+- [x] All Rust tests pass locally (`cargo test`)
+- [x] All npm tests pass locally (`cd npm && pnpm test`)
 - [x] Code is formatted (`cargo fmt`)
 - [x] Clippy passes (`cargo clippy`)
-- [ ] `CRATES_IO_TOKEN` added to GitHub secrets
+- [ ] `CRATES_IO` token added to GitHub secrets
+- [ ] `NPM_TOKEN` token added to GitHub secrets
+- [ ] `@dotenvage` scope exists on npmjs.org (if using scoped package)
+- [ ] Have publish access to `@dotenvage` organization on npm
 - [ ] Commits follow conventional format
 - [ ] Ready to push and release!
 
@@ -263,15 +324,24 @@ git push origin fix/windows-paths
 # Day 3: Ready to release!
 git checkout main
 git pull
-vim Cargo.toml  # 0.0.1 → 0.0.2
-git commit -m "chore: bump version to 0.0.2"
+
+# Option 1: Using cog bump (recommended - creates commit automatically)
+cog bump --patch  # Automatically syncs all versions and creates commit
 git push
+
+# Option 2: Manual version bump
+# vim Cargo.toml  # 0.0.1 → 0.0.2
+# ./scripts/sync-npm-version.sh 0.0.2
+# git add Cargo.toml Cargo.lock npm/package.json npm/dotenvage-napi/Cargo.toml package.json
+# git commit -m "chore: bump version to 0.0.2"
+# git push
 
 # ✨ Automatic release happens!
 # Generated changelog will include:
 # - feat(loader): add Docker TARGETARCH detection
 # - docs: update README with Docker examples
 # - fix(manager): handle Windows path separators
+# Both crates.io and npmjs.org will be published with version 0.0.2
 ```
 
 ## Resources

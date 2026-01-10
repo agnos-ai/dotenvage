@@ -83,6 +83,34 @@ jobs:
       - name: Run doc tests
         run: cargo test --doc
 
+  # Run npm tests
+  test-npm:
+    name: Test NPM
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 8
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+          cache-dependency-path: npm/pnpm-lock.yaml
+      - name: Install Rust (for NAPI build)
+        uses: dtolnay/rust-toolchain@stable
+      - name: Install dependencies
+        working-directory: npm
+        run: pnpm install
+      - name: Build NAPI bindings
+        working-directory: npm
+        run: pnpm run build
+      - name: Run npm tests
+        working-directory: npm
+        run: pnpm test
+
   # Detect version changes and prepare for release
   version-check:
     name: Check Version
@@ -127,7 +155,7 @@ jobs:
   release:
     name: Release
     runs-on: ubuntu-latest
-    needs: [fmt, clippy, test, version-check]
+    needs: [fmt, clippy, test, test-npm, version-check]
     if: needs.version-check.outputs.version_changed == 'true'
     permissions:
       contents: write
@@ -194,15 +222,59 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
 
+      - name: Verify version sync
+        run: |
+          RUST_VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
+          NAPI_VERSION=$(grep '^version' npm/dotenvage-napi/Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
+          NPM_VERSION=$(grep '"version"' npm/package.json | head -1 | sed 's/.*"\(.*\)".*/\1/')
+
+          echo "Rust version: $RUST_VERSION"
+          echo "NAPI version: $NAPI_VERSION"
+          echo "NPM version: $NPM_VERSION"
+
+          if [ "$RUST_VERSION" != "$NAPI_VERSION" ] || [ "$RUST_VERSION" != "$NPM_VERSION" ]; then
+            echo "❌ Version mismatch detected!"
+            exit 1
+          fi
+          echo "✅ All versions are in sync: $RUST_VERSION"
+
       - name: Publish to crates.io
         run: cargo publish --allow-dirty
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO }}
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 8
+      - name: Setup Node.js for npm publish
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install Rust (for NAPI build)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install npm dependencies
+        working-directory: npm
+        run: pnpm install
+
+      - name: Build NAPI bindings for all platforms
+        working-directory: npm
+        run: pnpm run build:all
+
+      - name: Publish to npmjs.org
+        working-directory: npm
+        run: pnpm publish --access public --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
       - name: Release Summary
         run: |
           echo "🎉 Successfully released v${{ needs.version-check.outputs.new_version }}"
           echo "📦 Published to crates.io: https://crates.io/crates/dotenvage"
+          echo "📦 Published to npmjs.org: https://www.npmjs.com/package/@dotenvage/node"
           echo "📝 GitHub Release: https://github.com/dataroadinc/dotenvage/releases/tag/v${{ needs.version-check.outputs.new_version }}"
           echo "📚 Documentation: https://docs.rs/dotenvage/${{ needs.version-check.outputs.new_version }}"
 
