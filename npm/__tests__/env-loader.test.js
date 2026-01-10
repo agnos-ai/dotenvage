@@ -39,7 +39,7 @@ describe("JsEnvLoader", () => {
   });
 
   it("should create a new loader", () => {
-    const loader = dotenvage.JsEnvLoaderNew();
+    const loader = dotenvage.JsEnvLoader.new();
     assert(loader);
     assert(typeof loader.load === "function");
   });
@@ -52,8 +52,8 @@ describe("JsEnvLoader", () => {
     );
 
     // Create a manager and loader (doesn't require external key)
-    const manager = dotenvage.JsSecretManagerGenerate();
-    const loader = dotenvage.JsEnvLoaderWithManager(manager);
+    const manager = dotenvage.JsSecretManager.generate();
+    const loader = dotenvage.JsEnvLoader.withManager(manager);
 
     try {
       loader.load();
@@ -74,8 +74,8 @@ describe("JsEnvLoader", () => {
     );
 
     // Create a manager and loader (doesn't require external key)
-    const manager = dotenvage.JsSecretManagerGenerate();
-    const loader = dotenvage.JsEnvLoaderWithManager(manager);
+    const manager = dotenvage.JsSecretManager.generate();
+    const loader = dotenvage.JsEnvLoader.withManager(manager);
 
     const names = loader.getAllVariableNames();
     assert(Array.isArray(names));
@@ -85,7 +85,7 @@ describe("JsEnvLoader", () => {
   });
 
   it("should resolve env paths", () => {
-    const loader = dotenvage.JsEnvLoaderNew();
+    const loader = dotenvage.JsEnvLoader.new();
     const paths = loader.resolveEnvPaths(testDir);
     assert(Array.isArray(paths));
     // Should include .env at minimum

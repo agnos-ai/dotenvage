@@ -36,14 +36,14 @@ async function createEnvFile(testDir, filename, content) {
  * Creates a test encryption key manager
  */
 function createTestManager(dotenvage) {
-  return dotenvage.JsSecretManagerGenerate();
+  return dotenvage.JsSecretManager.generate();
 }
 
 /**
  * Creates a test loader with a manager
  */
 function createTestLoader(dotenvage, manager) {
-  return dotenvage.JsEnvLoaderWithManager(manager);
+  return dotenvage.JsEnvLoader.withManager(manager);
 }
 
 /**

@@ -14,19 +14,19 @@ try {
 
 describe("JsSecretManager", () => {
   it("should generate a new secret manager", () => {
-    const manager = dotenvage.JsSecretManagerGenerate();
+    const manager = dotenvage.JsSecretManager.generate();
     assert(manager);
     assert(typeof manager.publicKeyString === "function");
   });
 
   it("should have a public key string starting with age1", () => {
-    const manager = dotenvage.JsSecretManagerGenerate();
+    const manager = dotenvage.JsSecretManager.generate();
     const publicKey = manager.publicKeyString();
     assert(publicKey.startsWith("age1"));
   });
 
   it("should encrypt and decrypt a value", () => {
-    const manager = dotenvage.JsSecretManagerGenerate();
+    const manager = dotenvage.JsSecretManager.generate();
     const plaintext = "my-secret-value";
     const encrypted = manager.encryptValue(plaintext);
 
@@ -38,14 +38,14 @@ describe("JsSecretManager", () => {
   });
 
   it("should pass through unencrypted values", () => {
-    const manager = dotenvage.JsSecretManagerGenerate();
+    const manager = dotenvage.JsSecretManager.generate();
     const plaintext = "not-encrypted";
     const result = manager.decryptValue(plaintext);
     assert.strictEqual(result, plaintext);
   });
 
   it("should detect encrypted values", () => {
-    const manager = dotenvage.JsSecretManagerGenerate();
+    const manager = dotenvage.JsSecretManager.generate();
     const plaintext = "my-secret-value";
     const encrypted = manager.encryptValue(plaintext);
 
@@ -55,7 +55,7 @@ describe("JsSecretManager", () => {
 
   it("should create from identity string", () => {
     // First generate one to get a valid identity
-    const manager1 = dotenvage.JsSecretManagerGenerate();
+    const manager1 = dotenvage.JsSecretManager.generate();
     // Note: We can't easily get the identity string from the manager
     // This test would require exposing more methods or generating a key file
     // For now, we'll skip this test or mark it as TODO

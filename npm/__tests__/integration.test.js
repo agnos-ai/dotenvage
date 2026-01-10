@@ -40,7 +40,7 @@ describe("Integration tests", () => {
 
     // Generate a test encryption key manager
     // Tests will use this same manager instance for encryption and decryption
-    testManager = dotenvage.JsSecretManagerGenerate();
+    testManager = dotenvage.JsSecretManager.generate();
   });
 
   after(async () => {
@@ -54,7 +54,7 @@ describe("Integration tests", () => {
   });
 
   it("should encrypt and decrypt values in .env files", async () => {
-    const manager = dotenvage.JsSecretManagerGenerate();
+    const manager = dotenvage.JsSecretManager.generate();
     const secret = "my-secret-api-key-12345";
     const encrypted = manager.encryptValue(secret);
 
@@ -63,7 +63,7 @@ describe("Integration tests", () => {
     await writeFile(path.join(testDir, ".env"), envContent);
 
     // Load with the same manager
-    const loader = dotenvage.JsEnvLoaderWithManager(manager);
+    const loader = dotenvage.JsEnvLoader.withManager(manager);
     loader.load();
 
     // Verify decryption worked
@@ -73,35 +73,56 @@ describe("Integration tests", () => {
   });
 
   it("should load variables from multiple .env files with layering", async () => {
-    const manager = dotenvage.JsSecretManagerGenerate();
+    const manager = dotenvage.JsSecretManager.generate();
 
-    // Create base .env
-    await writeFile(
-      path.join(testDir, ".env"),
-      "API_KEY=base-key\nPORT=8080\nNODE_ENV=development\n"
-    );
+    // Set DOTENVAGE_ENV=local so .env.local will be loaded
+    // resolve_env() checks DOTENVAGE_ENV, EKG_ENV, VERCEL_ENV, or NODE_ENV
+    const originalDotenvageEnv = process.env.DOTENVAGE_ENV;
+    const originalNodeEnv = process.env.NODE_ENV;
+    process.env.DOTENVAGE_ENV = "local";
+    // Don't set NODE_ENV in .env file as it would override DOTENVAGE_ENV
+    delete process.env.NODE_ENV;
 
-    // Create .env.local (should override .env)
-    await writeFile(
-      path.join(testDir, ".env.local"),
-      "API_KEY=local-key\nDATABASE_URL=postgres://localhost/test\n"
-    );
+    try {
+      // Create base .env (without NODE_ENV to avoid interfering with DOTENVAGE_ENV)
+      await writeFile(
+        path.join(testDir, ".env"),
+        "API_KEY=base-key\nPORT=8080\n"
+      );
 
-    const loader = dotenvage.JsEnvLoaderWithManager(manager);
-    loader.load();
+      // Create .env.local (should override .env when DOTENVAGE_ENV=local)
+      await writeFile(
+        path.join(testDir, ".env.local"),
+        "API_KEY=local-key\nDATABASE_URL=postgres://localhost/test\n"
+      );
 
-    // .env.local should override .env
-    assert.strictEqual(process.env.API_KEY, "local-key");
-    assert.strictEqual(process.env.PORT, "8080"); // From .env
-    assert.strictEqual(process.env.NODE_ENV, "development"); // From .env
-    assert.strictEqual(
-      process.env.DATABASE_URL,
-      "postgres://localhost/test"
-    ); // From .env.local
+      const loader = dotenvage.JsEnvLoader.withManager(manager);
+      loader.load();
+
+      // .env.local should override .env
+      assert.strictEqual(process.env.API_KEY, "local-key");
+      assert.strictEqual(process.env.PORT, "8080"); // From .env
+      assert.strictEqual(
+        process.env.DATABASE_URL,
+        "postgres://localhost/test"
+      ); // From .env.local
+    } finally {
+      // Restore original environment variables
+      if (originalDotenvageEnv === undefined) {
+        delete process.env.DOTENVAGE_ENV;
+      } else {
+        process.env.DOTENVAGE_ENV = originalDotenvageEnv;
+      }
+      if (originalNodeEnv === undefined) {
+        delete process.env.NODE_ENV;
+      } else {
+        process.env.NODE_ENV = originalNodeEnv;
+      }
+    }
   });
 
   it("should get all variables as object without mutating process.env", async () => {
-    const manager = dotenvage.JsSecretManagerGenerate();
+    const manager = dotenvage.JsSecretManager.generate();
 
     // Save original process.env values
     const originalApiKey = process.env.API_KEY;
@@ -113,7 +134,7 @@ describe("Integration tests", () => {
       "TEST_API_KEY=test-key-123\nTEST_PORT=3000\n"
     );
 
-    const loader = dotenvage.JsEnvLoaderWithManager(manager);
+    const loader = dotenvage.JsEnvLoader.withManager(manager);
 
     // Get variables as object (this still loads into process.env first, but returns object)
     const vars = loader.getAllVariables();
@@ -128,7 +149,7 @@ describe("Integration tests", () => {
   });
 
   it("should get all variable names without loading into environment", async () => {
-    const manager = dotenvage.JsSecretManagerGenerate();
+    const manager = dotenvage.JsSecretManager.generate();
 
     // Create test .env file
     await writeFile(
@@ -136,7 +157,7 @@ describe("Integration tests", () => {
       "VAR1=value1\nVAR2=value2\nVAR3=value3\n"
     );
 
-    const loader = dotenvage.JsEnvLoaderWithManager(manager);
+    const loader = dotenvage.JsEnvLoader.withManager(manager);
     const names = loader.getAllVariableNames();
 
     assert(Array.isArray(names));
@@ -147,7 +168,7 @@ describe("Integration tests", () => {
   });
 
   it("should resolve env paths correctly", () => {
-    const loader = dotenvage.JsEnvLoaderNew();
+    const loader = dotenvage.JsEnvLoader.new();
     const paths = loader.resolveEnvPaths(testDir);
 
     assert(Array.isArray(paths));
@@ -157,14 +178,14 @@ describe("Integration tests", () => {
   });
 
   it("should handle encrypted and plain values mixed", async () => {
-    const manager = dotenvage.JsSecretManagerGenerate();
+    const manager = dotenvage.JsSecretManager.generate();
     const encrypted = manager.encryptValue("secret-value");
 
     // Create .env with mix of encrypted and plain values
     const envContent = `ENCRYPTED_KEY=${encrypted}\nPLAIN_KEY=plain-value\nPORT=8080\n`;
     await writeFile(path.join(testDir, ".env"), envContent);
 
-    const loader = dotenvage.JsEnvLoaderWithManager(manager);
+    const loader = dotenvage.JsEnvLoader.withManager(manager);
     loader.load();
 
     // Encrypted should be decrypted
@@ -175,7 +196,7 @@ describe("Integration tests", () => {
   });
 
   it("should load from specific directory", async () => {
-    const manager = dotenvage.JsSecretManagerGenerate();
+    const manager = dotenvage.JsSecretManager.generate();
 
     // Create subdirectory with .env file
     const subDir = path.join(testDir, "config");
@@ -185,7 +206,7 @@ describe("Integration tests", () => {
       "SUB_DIR_VAR=subdir-value\n"
     );
 
-    const loader = dotenvage.JsEnvLoaderWithManager(manager);
+    const loader = dotenvage.JsEnvLoader.withManager(manager);
     loader.loadFromDir(subDir);
 
     assert.strictEqual(process.env.SUB_DIR_VAR, "subdir-value");

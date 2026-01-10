@@ -73,8 +73,8 @@ When writing new tests:
    hooks
 3. Handle cases where encryption keys might not be available
    gracefully
-4. Use `JsSecretManagerGenerate()` and `JsEnvLoaderWithManager()` for
-   tests that don't require external keys
+4. Use `JsSecretManager.generate()` and `JsEnvLoader.withManager()`
+   for tests that don't require external keys
 
 ## Example Test
 
