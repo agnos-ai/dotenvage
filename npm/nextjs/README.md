@@ -103,45 +103,29 @@ See `wrapper.mjs` below.
 A wrapper script that loads environment variables and then starts
 Next.js. This is the easiest way to ensure proper loading order.
 
-**Create a local wrapper in your project:**
+**The wrapper automatically:**
 
-Create `scripts/next-with-env.mjs` in your project:
+- Detects your package manager (pnpm/npm/yarn) by checking for lock
+  files
+- Uses the correct package manager's `exec` command to run Next.js
+- Handles path resolution automatically for all package manager setups
+- Works reliably in monorepos and pnpm workspaces
 
-```javascript
-#!/usr/bin/env node
-// Load encrypted env vars before Next.js starts
-await import("@dotenvage/node/nextjs/preinit");
-
-// Import and start Next.js
-const { spawn } = await import("child_process");
-const { resolve } = await import("path");
-
-const nextBin = resolve(process.cwd(), "node_modules/.bin/next");
-const args = process.argv.slice(2);
-
-const child = spawn("node", [nextBin, ...args], {
-  stdio: "inherit",
-  cwd: process.cwd(),
-  env: process.env,
-});
-
-child.on("exit", (code) => process.exit(code || 0));
-child.on("error", (error) => {
-  console.error("Failed to start Next.js:", error);
-  process.exit(1);
-});
-```
-
-Then update your `package.json`:
+**Usage - Update your `package.json`:**
 
 ```json
 {
   "scripts": {
-    "dev": "node scripts/next-with-env.mjs dev",
-    "build": "node scripts/next-with-env.mjs build"
+    "dev": "dotenvage-next dev",
+    "build": "dotenvage-next build"
   }
 }
 ```
+
+That's it! No need to create local wrapper scripts - the
+`dotenvage-next` bin script handles everything automatically. The
+`dotenvage-next` command is installed when you install
+`@dotenvage/node`.
 
 ## Complete Integration Example
 

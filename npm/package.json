@@ -5,7 +5,8 @@
   "main": "index.js",
   "types": "index.d.ts",
   "bin": {
-    "dotenvage": "./bin/dotenvage.js"
+    "dotenvage": "./bin/dotenvage.js",
+    "dotenvage-next": "./bin/dotenvage-next.js"
   },
   "files": [
     "index.js",
