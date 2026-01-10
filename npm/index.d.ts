@@ -55,15 +55,3 @@ export declare function init(): void
 
 /** Checks if a key name should be encrypted based on auto-detection patterns */
 export declare function shouldEncrypt(key: string): boolean
-
-/** @deprecated Use JsEnvLoader.new() instead */
-export declare function JsEnvLoaderNew(): JsEnvLoader
-
-/** @deprecated Use JsEnvLoader.withManager() instead */
-export declare function JsEnvLoaderWithManager(manager: JsSecretManager): JsEnvLoader
-
-/** @deprecated Use JsSecretManager.new() instead */
-export declare function JsSecretManagerNew(): JsSecretManager
-
-/** @deprecated Use JsSecretManager.generate() instead */
-export declare function JsSecretManagerGenerate(): JsSecretManager

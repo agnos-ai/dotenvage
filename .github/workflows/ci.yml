@@ -336,7 +336,7 @@ jobs:
         with:
           name: npm-node-files-${{ matrix.platform.target }}
           path: npm/*.node
-          retention-days: 1
+          retention-days: 7
           if-no-files-found: error
 
   # Publish npm package with all platform .node files
@@ -370,12 +370,15 @@ jobs:
           path: npm-artifacts/
       - name: Copy .node files to npm directory
         run: |
-          # Artifacts contain npm/*.node structure, copy files to npm/
+          # Artifacts preserve npm/ directory structure
+          # Find and copy all .node files to npm/ directory
           if [ -d "npm-artifacts/npm" ]; then
             cp npm-artifacts/npm/*.node npm/ 2>/dev/null || true
           fi
-          # Also check if files are directly in npm-artifacts
-          find npm-artifacts -name "*.node" -exec cp {} npm/ \;
+          # Also check for any .node files in npm-artifacts tree
+          find npm-artifacts -name "*.node" -type f -exec cp {} npm/ \; || true
+          echo "Copied .node files to npm/ directory"
+          ls -lh npm/*.node 2>/dev/null || echo "No .node files found"
 
       - name: Install npm dependencies
         working-directory: npm
@@ -402,32 +405,3 @@ jobs:
         run: |
           echo "✅ Published npm package: https://www.npmjs.com/package/@dotenvage/node"
           echo "Version: ${{ needs.version-check.outputs.new_version }}"
-
-      # Build npm NAPI bindings for this platform
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v3
-        with:
-          version: 8
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version-file: ".nvmrc"
-      - name: Install npm dependencies
-        working-directory: npm
-        run: pnpm install
-      - name: Build NAPI bindings for platform
-        working-directory: npm
-        run: |
-          napi build \
-            --manifest-path ./dotenvage-napi/Cargo.toml \
-            --output-dir . \
-            --platform \
-            --release \
-            --target ${{ matrix.platform.target }}
-      - name: Upload npm .node file artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: npm-node-files-${{ matrix.platform.target }}
-          path: npm/*.node
-          retention-days: 1
-          if-no-files-found: error

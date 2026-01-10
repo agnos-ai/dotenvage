@@ -36,8 +36,8 @@
     "./package.json": "./package.json"
   },
   "scripts": {
-    "build": "napi build --manifest-path ./dotenvage-napi/Cargo.toml --output-dir . --platform --release",
-    "build:debug": "napi build --manifest-path ./dotenvage-napi/Cargo.toml --output-dir . --platform",
+    "build": "napi build --manifest-path ./dotenvage-napi/Cargo.toml --output-dir . --platform --release --target $(./scripts/get-current-target.sh)",
+    "build:debug": "napi build --manifest-path ./dotenvage-napi/Cargo.toml --output-dir . --platform --target $(./scripts/get-current-target.sh)",
     "build:all": "./scripts/build-all.sh",
     "prepublishOnly": "npm run build",
     "test": "node --test __tests__/*.test.js",
