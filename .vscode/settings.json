@@ -36,5 +36,8 @@
         "clippy::missing_panics_doc",
         "-W",
         "clippy::missing_safety_doc"
-    ]
+    ],
+    "fileheader.configObj": {
+        "autoAdd": false
+    }
 }

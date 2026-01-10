@@ -24,7 +24,7 @@ updates:
     allow:
       - dependency-type: "all"
     # Update to the latest version when possible
-    versioning-strategy: "increase"
+    versioning-strategy: "auto"
     # Keep PRs manageable
     open-pull-requests-limit: 5
     # Add labels for easier identification

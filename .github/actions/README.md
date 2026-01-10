@@ -9,7 +9,7 @@ All local actions have been migrated to use the shared actions
 repository. Workflows now reference:
 
 ```yaml
-uses: dataroadinc/github-actions/.github/actions/action-name@v0.0.1
+uses: dataroadinc/github-actions/.github/actions/action-name@main
 ```
 
 ## Available Shared Actions
@@ -27,10 +27,10 @@ for complete documentation of all available actions.
 
 ```yaml
 - name: Setup Cocogitto
-  uses: dataroadinc/github-actions/.github/actions/setup-cocogitto@v0.0.1
+  uses: dataroadinc/github-actions/.github/actions/setup-cocogitto@main
 
 - name: Generate changelog
-  uses: dataroadinc/github-actions/.github/actions/generate-changelog@v0.0.1
+  uses: dataroadinc/github-actions/.github/actions/generate-changelog@main
   with:
     release-tag: v0.1.0
 ```
