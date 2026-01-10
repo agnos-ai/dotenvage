@@ -1,0 +1,73 @@
+{
+  "name": "@dotenvage/node",
+  "version": "0.1.3",
+  "description": "Node.js bindings for dotenvage - Dotenv with age encryption",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "bin": {
+    "dotenvage": "./bin/dotenvage.js"
+  },
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "bin/",
+    "*.node",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "napi build --platform --release",
+    "build:debug": "napi build --platform",
+    "build:all": "napi build --all-platforms --release",
+    "prepublishOnly": "npm run build:all",
+    "test": "node --test __tests__/*.test.js",
+    "test:unit": "node --test __tests__/basic.test.js __tests__/secret-manager.test.js __tests__/env-loader.test.js",
+    "test:integration": "node --test __tests__/integration.test.js",
+    "test:all": "npm run test"
+  },
+  "keywords": [
+    "dotenv",
+    "age",
+    "encryption",
+    "secrets",
+    "environment",
+    "env",
+    "napi",
+    "nodejs"
+  ],
+  "author": "Jacobus Geluk <jacobus@dataroad.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dataroadinc/dotenvage.git",
+    "directory": "npm"
+  },
+  "homepage": "https://github.com/dataroadinc/dotenvage#readme",
+  "bugs": {
+    "url": "https://github.com/dataroadinc/dotenvage/issues"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "napi": {
+    "name": "dotenvage-napi",
+    "triples": {
+      "defaults": true,
+      "additional": [
+        "x86_64-unknown-linux-gnu",
+        "x86_64-unknown-linux-musl",
+        "aarch64-unknown-linux-gnu",
+        "aarch64-unknown-linux-musl",
+        "x86_64-apple-darwin",
+        "aarch64-apple-darwin",
+        "x86_64-pc-windows-msvc",
+        "aarch64-pc-windows-msvc",
+        "i686-pc-windows-msvc"
+      ]
+    }
+  },
+  "devDependencies": {
+    "@napi-rs/cli": "^2.18.0",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  }
+}

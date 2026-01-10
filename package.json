@@ -1,0 +1,22 @@
+{
+  "name": "dotenvage-workspace",
+  "version": "0.1.3",
+  "description": "Dotenv with age encryption - Workspace root",
+  "private": true,
+  "scripts": {
+    "npm:build": "cd npm && npm run build",
+    "npm:build:debug": "cd npm && npm run build:debug",
+    "npm:build:all": "cd npm && npm run build:all",
+    "npm:test": "cd npm && npm test",
+    "npm:test:unit": "cd npm && npm run test:unit",
+    "npm:test:integration": "cd npm && npm run test:integration",
+    "npm:install": "cd npm && npm install",
+    "npm:publish": "cd npm && npm publish"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dataroadinc/dotenvage.git"
+  },
+  "author": "Jacobus Geluk <jacobus@dataroad.com>",
+  "license": "MIT"
+}
