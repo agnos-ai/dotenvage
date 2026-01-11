@@ -20,13 +20,17 @@ updates:
         update-types:
           - "minor"
           - "patch"
+      security-updates:
+        applies-to: "security-updates"
+        patterns:
+          - "*"
     # Allow both direct and indirect dependencies
     allow:
       - dependency-type: "all"
     # Update to the latest version when possible
     versioning-strategy: "auto"
-    # Keep PRs manageable
-    open-pull-requests-limit: 5
+    # Keep PRs manageable - should only be 1 with grouping enabled
+    open-pull-requests-limit: 2
     # Add labels for easier identification
     labels:
       - "dependencies"
