@@ -1,6 +1,6 @@
 [package]
 name = "dotenvage-napi"
-version = "0.1.3"
+version = "0.1.4"
 edition = "2021"
 license = "MIT"
 authors = ["Jacobus Geluk <jacobus@dataroad.com>"]
@@ -13,7 +13,7 @@ publish = false
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-dotenvage = { path = "../../", version = "0.1.3" }
+dotenvage = { path = "../../", version = "0.1.4" }
 age = { version = "0.11.2", features = ["armor"] }
 napi = { version = "3.5.1", default-features = false, features = [
     "napi6",
