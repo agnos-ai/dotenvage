@@ -346,6 +346,7 @@ jobs:
     needs: [build-and-upload-binaries, version-check]
     permissions:
       contents: read
+      id-token: write # Required for OIDC authentication (npm Trusted Publishing)
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -397,9 +398,7 @@ jobs:
 
       - name: Publish to npmjs.org
         working-directory: npm
-        run: pnpm publish --access public --no-git-checks
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: pnpm publish --access public --no-git-checks --provenance
 
       - name: Publish Summary
         run: |
