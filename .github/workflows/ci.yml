@@ -324,6 +324,7 @@ jobs:
         run: pnpm install
       - name: Build NAPI bindings for platform
         working-directory: npm
+        shell: bash
         run: |
           pnpm exec napi build \
             --manifest-path ./dotenvage-napi/Cargo.toml \
