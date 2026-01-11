@@ -75,22 +75,26 @@ describe("Integration tests", () => {
   it("should load variables from multiple .env files with layering", async () => {
     const manager = dotenvage.JsSecretManager.generate();
 
-    // Set DOTENVAGE_ENV=local so .env.local will be loaded
-    // resolve_env() checks DOTENVAGE_ENV, EKG_ENV, VERCEL_ENV, or NODE_ENV
+    // Clear environment variables to test .env file discovery
+    // resolve_env() now checks .env file first, then environment variables
     const originalDotenvageEnv = process.env.DOTENVAGE_ENV;
+    const originalEkgEnv = process.env.EKG_ENV;
+    const originalVercelEnv = process.env.VERCEL_ENV;
     const originalNodeEnv = process.env.NODE_ENV;
-    process.env.DOTENVAGE_ENV = "local";
-    // Don't set NODE_ENV in .env file as it would override DOTENVAGE_ENV
+    delete process.env.DOTENVAGE_ENV;
+    delete process.env.EKG_ENV;
+    delete process.env.VERCEL_ENV;
     delete process.env.NODE_ENV;
 
     try {
-      // Create base .env (without NODE_ENV to avoid interfering with DOTENVAGE_ENV)
+      // Create base .env with NODE_ENV=local so .env.local will be loaded
+      // The loader will read NODE_ENV from .env file to determine which files to load
       await writeFile(
         path.join(testDir, ".env"),
-        "API_KEY=base-key\nPORT=8080\n"
+        "NODE_ENV=local\nAPI_KEY=base-key\nPORT=8080\n"
       );
 
-      // Create .env.local (should override .env when DOTENVAGE_ENV=local)
+      // Create .env.local (should override .env when NODE_ENV=local)
       await writeFile(
         path.join(testDir, ".env.local"),
         "API_KEY=local-key\nDATABASE_URL=postgres://localhost/test\n"
@@ -102,6 +106,7 @@ describe("Integration tests", () => {
       // .env.local should override .env
       assert.strictEqual(process.env.API_KEY, "local-key");
       assert.strictEqual(process.env.PORT, "8080"); // From .env
+      assert.strictEqual(process.env.NODE_ENV, "local"); // From .env
       assert.strictEqual(
         process.env.DATABASE_URL,
         "postgres://localhost/test"
@@ -112,6 +117,16 @@ describe("Integration tests", () => {
         delete process.env.DOTENVAGE_ENV;
       } else {
         process.env.DOTENVAGE_ENV = originalDotenvageEnv;
+      }
+      if (originalEkgEnv === undefined) {
+        delete process.env.EKG_ENV;
+      } else {
+        process.env.EKG_ENV = originalEkgEnv;
+      }
+      if (originalVercelEnv === undefined) {
+        delete process.env.VERCEL_ENV;
+      } else {
+        process.env.VERCEL_ENV = originalVercelEnv;
       }
       if (originalNodeEnv === undefined) {
         delete process.env.NODE_ENV;
