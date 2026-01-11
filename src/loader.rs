@@ -405,6 +405,10 @@ impl EnvLoader {
         // Always start with base .env
         Self::add_exact_if_exist(dir, &mut paths, ".env");
 
+        // Discover ENV configuration from .env file before resolving dimensions
+        // This allows NODE_ENV in .env to determine which files to load
+        Self::discover_env_from_env_file(dir);
+
         // Resolve all dimensions
         let env = Self::resolve_env();
         let os = Self::resolve_os();
@@ -761,15 +765,100 @@ impl EnvLoader {
             .replace('\t', "\\t")
     }
 
+    /// Attempts to discover ENV configuration from .env file as a fallback.
+    ///
+    /// This reads the `.env` file (without decryption) to find environment
+    /// configuration variables (DOTENVAGE_ENV, EKG_ENV, VERCEL_ENV, or
+    /// NODE_ENV) and sets them in the environment so they can be used for
+    /// file path resolution.
+    ///
+    /// This is a fallback mechanism - environment variables always take
+    /// precedence. This function only runs if no ENV configuration variables
+    /// are already set in the process environment.
+    ///
+    /// Unlike AGE_KEY_NAME, ENV configuration variables can be encrypted, but
+    /// if they are encrypted, they won't be available for file path resolution
+    /// and the system will fall back to defaulting to "local".
+    fn discover_env_from_env_file(dir: &Path) {
+        // Skip if any ENV variable is already set in environment
+        // Environment variables always take precedence over .env file
+        if std::env::var("DOTENVAGE_ENV").is_ok()
+            || std::env::var("EKG_ENV").is_ok()
+            || std::env::var("VERCEL_ENV").is_ok()
+            || std::env::var("NODE_ENV").is_ok()
+        {
+            return;
+        }
+
+        // Try to read .env file
+        let env_file = dir.join(".env");
+        if let Some(config_key) = Self::find_env_config_in_file(&env_file) {
+            // Set the first ENV config variable we find (in priority order)
+            // This will be read by resolve_env() later
+            unsafe {
+                std::env::set_var(config_key.0, config_key.1);
+            }
+        }
+    }
+
+    /// Searches a single .env file for ENV configuration variables.
+    ///
+    /// Returns `Some((key, value))` if a plaintext ENV config variable is
+    /// found, `None` if no ENV config variable is found.
+    ///
+    /// Checks variables in priority order: DOTENVAGE_ENV, EKG_ENV, VERCEL_ENV,
+    /// NODE_ENV. Returns the highest priority one found. If a variable is
+    /// encrypted, it's skipped.
+    fn find_env_config_in_file(file_path: &Path) -> Option<(String, String)> {
+        let content = std::fs::read_to_string(file_path).ok()?;
+
+        // Check in priority order across all lines
+        // Priority: DOTENVAGE_ENV > EKG_ENV > VERCEL_ENV > NODE_ENV
+        for key in &["DOTENVAGE_ENV", "EKG_ENV", "VERCEL_ENV", "NODE_ENV"] {
+            for line in content.lines() {
+                let line = line.trim();
+
+                // Skip comments and empty lines
+                if line.is_empty() || line.starts_with('#') {
+                    continue;
+                }
+
+                // Look for KEY=value patterns
+                let Some((line_key, value)) = line.split_once('=') else {
+                    continue;
+                };
+                let line_key = line_key.trim();
+                let value = value.trim().trim_matches('"').trim_matches('\'');
+
+                // Check if this is the key we're looking for
+                if line_key == *key && !value.is_empty() {
+                    // Skip encrypted values - we can't decrypt them without a SecretManager
+                    if !SecretManager::is_encrypted(value) {
+                        return Some((key.to_string(), value.to_string()));
+                    }
+                }
+            }
+        }
+
+        None
+    }
+
     /// Resolves the `<ENV>` placeholder for environment-specific file names.
     ///
-    /// The environment name is resolved in the following order:
+    /// The environment name is resolved in the following order (higher numbers
+    /// take precedence):
     ///
     /// 1. `DOTENVAGE_ENV` environment variable (preferred)
     /// 2. `EKG_ENV` environment variable (alternative)
     /// 3. `VERCEL_ENV` environment variable
     /// 4. `NODE_ENV` environment variable
-    /// 5. Defaults to `"local"` if none of the above are set
+    /// 5. `.env` file (as fallback - checks for DOTENVAGE_ENV, EKG_ENV,
+    ///    VERCEL_ENV, or NODE_ENV - plaintext only)
+    /// 6. Defaults to `"local"` if none of the above are set
+    ///
+    /// Note: Environment variables always take precedence over values in
+    /// `.env` files. The `.env` file is only checked if no environment
+    /// variables are set.
     ///
     /// The value is always converted to lowercase.
     ///
