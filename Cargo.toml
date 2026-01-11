@@ -5,7 +5,7 @@ resolver = "2"
 [package]
 name = "dotenvage"
 description = "Dotenv with age encryption: encrypt/decrypt secrets in .env files"
-version = "0.1.5"
+version = "0.1.6"
 edition = "2024"
 license-file = "LICENSE"
 keywords = ["dotenv", "age", "encryption", "secrets", "cli"]
