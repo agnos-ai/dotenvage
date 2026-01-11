@@ -16,6 +16,10 @@ npm/dotenvage-napi/*.node
 # Log files
 *.log
 
+# Environment files (test artifacts)
+.env
+.env.local
+
 # Lock files (keep pnpm-lock.yaml for npm package)
 package-lock.json
 yarn.lock
