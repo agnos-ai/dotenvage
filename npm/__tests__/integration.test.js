@@ -183,7 +183,9 @@ describe("Integration tests", () => {
   });
 
   it("should resolve env paths correctly", () => {
-    const loader = dotenvage.JsEnvLoader.new();
+    // Use withManager to avoid requiring external AGE key
+    const manager = dotenvage.JsSecretManager.generate();
+    const loader = dotenvage.JsEnvLoader.withManager(manager);
     const paths = loader.resolveEnvPaths(testDir);
 
     assert(Array.isArray(paths));

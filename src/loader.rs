@@ -815,29 +815,41 @@ impl EnvLoader {
         // Check in priority order across all lines
         // Priority: DOTENVAGE_ENV > EKG_ENV > VERCEL_ENV > NODE_ENV
         for key in &["DOTENVAGE_ENV", "EKG_ENV", "VERCEL_ENV", "NODE_ENV"] {
-            for line in content.lines() {
-                let line = line.trim();
-
-                // Skip comments and empty lines
-                if line.is_empty() || line.starts_with('#') {
-                    continue;
-                }
-
-                // Look for KEY=value patterns
-                let Some((line_key, value)) = line.split_once('=') else {
-                    continue;
-                };
-                let line_key = line_key.trim();
-                let value = value.trim().trim_matches('"').trim_matches('\'');
-
-                // Check if this is the key we're looking for
-                if line_key == *key && !value.is_empty() {
-                    // Skip encrypted values - we can't decrypt them without a SecretManager
-                    if !SecretManager::is_encrypted(value) {
-                        return Some((key.to_string(), value.to_string()));
-                    }
-                }
+            if let Some(value) = Self::find_key_value_in_content(&content, key) {
+                return Some((key.to_string(), value));
             }
+        }
+
+        None
+    }
+
+    /// Helper function to find a key-value pair in file content.
+    /// Returns the value if found and not encrypted, None otherwise.
+    fn find_key_value_in_content(content: &str, key: &str) -> Option<String> {
+        for line in content.lines() {
+            let line = line.trim();
+
+            // Skip comments and empty lines
+            if line.is_empty() || line.starts_with('#') {
+                continue;
+            }
+
+            // Look for KEY=value patterns
+            let (line_key, value) = line.split_once('=')?;
+            let line_key = line_key.trim();
+            let value = value.trim().trim_matches('"').trim_matches('\'');
+
+            // Check if this is the key we're looking for
+            if line_key != key || value.is_empty() {
+                continue;
+            }
+
+            // Skip encrypted values - we can't decrypt them without a SecretManager
+            if SecretManager::is_encrypted(value) {
+                continue;
+            }
+
+            return Some(value.to_string());
         }
 
         None

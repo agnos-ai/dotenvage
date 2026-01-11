@@ -39,7 +39,9 @@ describe("JsEnvLoader", () => {
   });
 
   it("should create a new loader", () => {
-    const loader = dotenvage.JsEnvLoader.new();
+    // Use withManager to avoid requiring external AGE key
+    const manager = dotenvage.JsSecretManager.generate();
+    const loader = dotenvage.JsEnvLoader.withManager(manager);
     assert(loader);
     assert(typeof loader.load === "function");
   });
@@ -85,7 +87,9 @@ describe("JsEnvLoader", () => {
   });
 
   it("should resolve env paths", () => {
-    const loader = dotenvage.JsEnvLoader.new();
+    // Use withManager to avoid requiring external AGE key
+    const manager = dotenvage.JsSecretManager.generate();
+    const loader = dotenvage.JsEnvLoader.withManager(manager);
     const paths = loader.resolveEnvPaths(testDir);
     assert(Array.isArray(paths));
     // Should include .env at minimum
