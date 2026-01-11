@@ -20,6 +20,13 @@
             "headings_line_length": false
         }
     },
+    "markdownlint.ignore": [
+        "**/LICENSE",
+        "LICENSE"
+    ],
+    "files.associations": {
+        "LICENSE": "plaintext"
+    },
     "prettier.printWidth": 70,
     "prettier.proseWrap": "always",
     "rust-analyzer.rustfmt.extraArgs": [
