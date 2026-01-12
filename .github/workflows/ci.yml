@@ -224,19 +224,20 @@ jobs:
 
       - name: Verify version sync
         run: |
-          RUST_VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
-          NAPI_VERSION=$(grep '^version' npm/dotenvage-napi/Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
+          # Get workspace version (the source of truth)
+          WORKSPACE_VERSION=$(grep '^\[workspace\.package\]' -A 10 Cargo.toml | grep '^version' | head -1 | sed 's/.*"\(.*\)".*/\1/')
           NPM_VERSION=$(grep '"version"' npm/package.json | head -1 | sed 's/.*"\(.*\)".*/\1/')
 
-          echo "Rust version: $RUST_VERSION"
-          echo "NAPI version: $NAPI_VERSION"
+          echo "Workspace version: $WORKSPACE_VERSION"
           echo "NPM version: $NPM_VERSION"
 
-          if [ "$RUST_VERSION" != "$NAPI_VERSION" ] || [ "$RUST_VERSION" != "$NPM_VERSION" ]; then
+          if [ "$WORKSPACE_VERSION" != "$NPM_VERSION" ]; then
             echo "❌ Version mismatch detected!"
+            echo "Workspace (Cargo.toml): $WORKSPACE_VERSION"
+            echo "NPM (package.json): $NPM_VERSION"
             exit 1
           fi
-          echo "✅ All versions are in sync: $RUST_VERSION"
+          echo "✅ All versions are in sync: $WORKSPACE_VERSION"
 
       - name: Publish to crates.io
         run: cargo publish --allow-dirty
