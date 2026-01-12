@@ -1,12 +1,12 @@
 [package]
 name = "dotenvage-napi"
-version = "0.1.7"
-edition = "2021"
-license = "MIT"
-authors = ["Jacobus Geluk <jacobus@dataroad.com>"]
-repository = "https://github.com/dataroadinc/dotenvage"
 description = "Node.js bindings for dotenvage using NAPI-RS"
-rust-version = "1.92.0"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+license-file.workspace = true
 publish = false
 
 [lib]

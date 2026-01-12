@@ -397,9 +397,25 @@ jobs:
             echo "⚠️  Warning: Expected more .node files (found $NODE_COUNT)"
           fi
 
+      - name: Verify npm and OIDC setup
+        working-directory: npm
+        run: |
+          echo "🔍 Verifying npm OIDC setup..."
+          echo "npm version: $(npm --version)"
+          echo "pnpm version: $(pnpm --version)"
+          echo "Node version: $(node --version)"
+          echo ""
+          echo "📦 Package info:"
+          echo "  Name: $(node -p "require('./package.json').name")"
+          echo "  Version: $(node -p "require('./package.json').version")"
+          echo ""
+          echo "✅ OIDC authentication will be handled automatically during publish"
+          echo "   (Trusted Publisher should be configured on npmjs.com)"
+
       - name: Publish to npmjs.org
         working-directory: npm
         run: pnpm publish --access public --no-git-checks --provenance
+        continue-on-error: false
 
       - name: Publish Summary
         run: |

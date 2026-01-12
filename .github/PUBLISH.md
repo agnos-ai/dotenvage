@@ -54,26 +54,47 @@ merge. Both packages will be published together.
    - Name: `CRATES_IO` (or `CRATES_IO_TOKEN`)
    - Value: `<your-crates-io-token>`
 
-### 2. Add npm Token to GitHub Secrets
+### 2. Configure npm Trusted Publishing (OIDC)
 
-1. Get your npm API token:
+This project uses npm's **Trusted Publishing** with OpenID Connect
+(OIDC) for secure, token-free publishing. No npm tokens are needed!
 
-   ```bash
-   # Visit https://www.npmjs.com/settings/<your-username>/tokens
-   # Create a new "Automation" token with "Publish" permissions
-   # Or use an existing token with publish access
-   ```
+**Setup Steps:**
 
-2. Add to GitHub repository secrets:
-   - Go to:
-     https://github.com/dataroadinc/dotenvage/settings/secrets/actions
-   - Click "New repository secret"
-   - Name: `NPM_TOKEN`
-   - Value: `<your-npm-token>`
+1. Navigate to your package on npmjs.com:
 
-**Note**: Make sure you're logged into npm and have access to publish
-to the `@dotenvage` scope. If you need to create the
-organization/scope on npm, do that first.
+   - Go to: https://www.npmjs.com/package/@dotenvage/node
+   - Click on the package name, then go to **Package settings**
+
+2. Set up Trusted Publisher:
+
+   - Scroll down to **"Trusted Publishers"** section
+   - Click **"Add Trusted Publisher"** or **"Set up Trusted
+     Publishing"**
+   - Select **"GitHub Actions"** as the publisher type
+
+3. Configure the Trusted Publisher (all fields are case-sensitive):
+
+   - **Owner:** `dataroadinc`
+   - **Repository:** `dotenvage`
+   - **Workflow filename:** `ci.yml` (the exact filename in
+     `.github/workflows/`)
+   - **Environment:** Leave empty (or create an environment named
+     `npm` if you want additional protection)
+
+4. Save the configuration
+
+**Important:** The workflow file name (`ci.yml`) and repository
+details must match exactly. The workflow already has the correct
+configuration:
+
+- ✅ `id-token: write` permission (required for OIDC)
+- ✅ `--provenance` flag in publish command
+- ✅ No `NODE_AUTH_TOKEN` needed
+
+**Note**: Make sure you have access to publish to the `@dotenvage`
+scope on npm. If you need to create the organization/scope on npm, do
+that first.
 
 ## Publishing a New Version
 
@@ -258,13 +279,35 @@ You can't publish the same version twice.
 
 **Solution**: Bump to a new version number.
 
-### "Authentication failed"
+### "Authentication failed" (npm)
 
-The crates.io or npm token is missing or invalid.
+The npm Trusted Publishing (OIDC) configuration is missing or
+incorrect.
 
-**Solution**: Check that both `CRATES_IO_TOKEN` (or `CRATES_IO`) and
-`NPM_TOKEN` secrets are set correctly in GitHub settings. For npm,
-ensure your token has publish access to the `@dotenvage` scope.
+**Solution**:
+
+- Verify Trusted Publisher is configured on npmjs.com:
+  - Go to https://www.npmjs.com/package/@dotenvage/node → Package
+    settings → Trusted Publishers
+  - Check that all fields match exactly:
+    - Owner: `dataroadinc`
+    - Repository: `dotenvage`
+    - Workflow filename: `ci.yml`
+- Ensure the workflow has `id-token: write` permission (already
+  configured)
+- The publish command uses `--provenance` flag (already configured)
+- No `NPM_TOKEN` secret is needed with OIDC
+
+### "Authentication failed" (crates.io)
+
+The crates.io token is missing or invalid.
+
+**Solution**: Check that `CRATES_IO_TOKEN` (or `CRATES_IO`) secret is
+set correctly in GitHub settings:
+
+- Go to:
+  https://github.com/dataroadinc/dotenvage/settings/secrets/actions
+- Ensure `CRATES_IO` or `CRATES_IO_TOKEN` exists with a valid token
 
 ### "Version mismatch detected"
 
@@ -297,8 +340,11 @@ The release won't happen if any check fails.
 - [x] Code is formatted (`cargo fmt`)
 - [x] Clippy passes (`cargo clippy`)
 - [ ] `CRATES_IO` token added to GitHub secrets
-- [ ] `NPM_TOKEN` token added to GitHub secrets
-- [ ] `@dotenvage` scope exists on npmjs.org (if using scoped package)
+- [ ] npm Trusted Publishing (OIDC) configured on npmjs.com
+  - [ ] Owner: `dataroadinc`
+  - [ ] Repository: `dotenvage`
+  - [ ] Workflow: `ci.yml`
+- [ ] `@dotenvage` scope exists on npmjs.org
 - [ ] Have publish access to `@dotenvage` organization on npm
 - [ ] Commits follow conventional format
 - [ ] Ready to push and release!
