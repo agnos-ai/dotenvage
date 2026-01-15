@@ -5,11 +5,16 @@
 ### ✅ Fixed Issues
 
 1. **CI/CD Workflow** - Fixed workspace version parsing
-   - Commit: `184db32` - `fix(ci): handle workspace version in version sync check`
-   - The version sync check now correctly reads from `[workspace.package]`
+
+   - Commit: `184db32` -
+     `fix(ci): handle workspace version in version sync check`
+   - The version sync check now correctly reads from
+     `[workspace.package]`
 
 2. **Version Sync Script** - Now updates all version references
-   - Commit: `4064448` - `fix(scripts): sync napi cargo dependency version in version bump`
+
+   - Commit: `4064448` -
+     `fix(scripts): sync napi cargo dependency version in version bump`
    - Updates `npm/package.json`
    - Updates `npm/dotenvage-napi/Cargo.toml` dependency version
    - Updates root `package.json` if present
@@ -22,13 +27,15 @@
      - ✅ `aarch64-apple-darwin`
      - ✅ `x86_64-pc-windows-msvc`
      - ✅ `aarch64-pc-windows-msvc`
-   - All binaries downloaded and added to `/Users/jgeluk/Work/dotenvage/npm/`
+   - All binaries downloaded and added to
+     `/Users/jgeluk/Work/dotenvage/npm/`
 
 ### ❌ Remaining Issue
 
 **npm Trusted Publisher Authentication Failure**
 
 The GitHub Actions workflow fails at the npm publish step with:
+
 ```
 npm error 404 Not Found - PUT https://registry.npmjs.org/@dotenvage%2fnode
 npm notice Access token expired or revoked
@@ -36,8 +43,8 @@ npm notice Access token expired or revoked
 
 ## Root Cause
 
-The npm Trusted Publisher (OIDC) is not properly configured on npmjs.com,
-or the configuration doesn't match the workflow.
+The npm Trusted Publisher (OIDC) is not properly configured on
+npmjs.com, or the configuration doesn't match the workflow.
 
 ## Solution Options
 
@@ -67,11 +74,13 @@ or the configuration doesn't match the workflow.
 **Steps**:
 
 1. Login to npm:
+
    ```bash
    npm login
    ```
 
 2. Restore prepublishOnly script:
+
    ```bash
    cd /Users/jgeluk/Work/dotenvage/npm
    # Edit package.json to restore: "prepublishOnly": "npm run build"
@@ -84,8 +93,8 @@ or the configuration doesn't match the workflow.
    ```
 
 **Note**: All binaries are already in the npm directory, so the
-prepublishOnly build will just rebuild the current platform (macOS) but
-all 7 platform binaries will be included in the package.
+prepublishOnly build will just rebuild the current platform (macOS)
+but all 7 platform binaries will be included in the package.
 
 ### Option 3: Use GitHub Actions with npm Token
 
@@ -105,11 +114,13 @@ all 7 platform binaries will be included in the package.
 ## Current Workaround
 
 Business-composer is using a local link to dotenvage:
+
 ```json
 "@dotenvage/node": "link:../dotenvage/npm"
 ```
 
 This works for local development but **will fail on Vercel** because:
+
 - Vercel can't access the local filesystem
 - The link points to a local directory that doesn't exist on Vercel
 
@@ -124,6 +135,7 @@ This works for local development but **will fail on Vercel** because:
 ## Files Modified
 
 ### Dotenvage
+
 1. `.github/workflows/ci.yml` - Fixed workspace version parsing
 2. `scripts/sync-npm-version.sh` - Added NAPI version sync
 3. `Cargo.toml` - Version 0.1.9
@@ -131,12 +143,14 @@ This works for local development but **will fail on Vercel** because:
 5. `npm/dotenvage-napi/Cargo.toml` - Dependency version 0.1.9
 
 ### Business-Composer
+
 - Currently using local link (temporary)
 - Will be updated to `^0.1.9` once published
 
 ## Verification
 
 Once v0.1.9 is published to npm, verify with:
+
 ```bash
 npm view @dotenvage/node@0.1.9 dist.tarball
 ```
