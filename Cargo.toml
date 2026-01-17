@@ -13,7 +13,7 @@ license-file = "LICENSE"
 [package]
 name = "dotenvage"
 description = "Dotenv with age encryption: encrypt/decrypt secrets in .env files"
-version.workspace = true
+version = "0.1.11"
 edition.workspace = true
 authors.workspace = true
 repository.workspace = true
