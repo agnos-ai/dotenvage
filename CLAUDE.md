@@ -134,5 +134,25 @@ git commit \
 
 ## Version Management
 
-Single source of truth in workspace `Cargo.toml`. Version sync across
-npm handled by cocogitto pre-bump hooks.
+Use `cargo version-info bump` for version management. This command
+updates Cargo.toml and creates a commit, but does NOT create tags
+(tags are created by CI after tests pass).
+
+```bash
+cargo version-info bump --patch   # 0.0.1 -> 0.0.2
+cargo version-info bump --minor   # 0.1.0 -> 0.2.0
+cargo version-info bump --major   # 1.0.0 -> 2.0.0
+```
+
+**Do NOT use `cog bump`** - it creates local tags which conflict
+with CI's tag creation workflow, and requires a clean working tree.
+
+**Workflow:**
+
+1. Create PR with version bump commit
+2. Merge PR to main
+3. CI detects version change, creates tag, publishes release
+
+Single source of truth is workspace `Cargo.toml`. Version sync across
+npm is handled by `scripts/sync-npm-version.sh` (called by
+`cargo version-info bump` via cocogitto pre-bump hooks).
