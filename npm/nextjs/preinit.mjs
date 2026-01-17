@@ -80,10 +80,13 @@ function loadEnvPreinit() {
     console.error("");
     console.error("  Make sure one of these is set:");
     console.error(
-      "    - EKG_AGE_KEY (for key name-based lookup: ekg/dr-rs-ekg)"
+      "    - EKG_AGE_KEY (direct AGE identity string: AGE-SECRET-KEY-...)"
     );
-    console.error("    - DOTENVAGE_AGE_KEY (direct key string)");
-    console.error("    - AGE_KEY (direct key string)");
+    console.error("    - DOTENVAGE_AGE_KEY (direct AGE identity string)");
+    console.error("    - AGE_KEY (direct AGE identity string)");
+    console.error(
+      "    - EKG_AGE_KEY_NAME in .env (for key name-based lookup: ekg/myproject)"
+    );
     console.error("");
 
     // In production/Vercel, fail hard - we need env vars to work
