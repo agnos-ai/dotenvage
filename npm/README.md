@@ -259,9 +259,13 @@ dotenvage supports automatic file layering with precedence:
 3. `.env.<ENV>.<OS>` - OS-specific (e.g., `.env.production.linux`)
 4. `.env.<ENV>.<OS>.<ARCH>` - Architecture-specific
 5. `.env.<ENV>.<OS>.<ARCH>.<USER>` - User-specific overrides
+6. `.env.<ENV>.<OS>.<ARCH>.<USER>.<VARIANT>` - Variant-specific
+   (e.g., `.env.production.linux.amd64.alice.docker`)
 
 Files are loaded in specificity order - more specific files override
-less specific ones.
+less specific ones. Dimension values can also be discovered from
+loaded files (e.g., `NODE_ENV=production` in `.env` causes
+`.env.production` to load).
 
 ## Key Management
 

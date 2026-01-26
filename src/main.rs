@@ -88,8 +88,8 @@ enum Commands {
         #[arg(short, long)]
         file: Option<PathBuf>,
         /// Show values (decrypted)
-        #[arg(short, long)]
-        verbose: bool,
+        #[arg(long)]
+        show_values: bool,
         /// Plain ASCII output (no icons, just variable names)
         #[arg(short, long)]
         plain: bool,
@@ -124,6 +124,10 @@ enum Commands {
 #[derive(Parser, Debug, Clone)]
 #[command(name = "dotenvage", version, about = "Dotenv with age encryption")]
 struct Cli {
+    /// Show which files are being read
+    #[arg(short, long, global = true)]
+    verbose: bool,
+
     #[command(subcommand)]
     command: Commands,
 }
@@ -157,13 +161,13 @@ fn main() -> Result<()> {
         Commands::Encrypt { file, keys, auto } => encrypt(file, keys, auto),
         Commands::Edit { file } => edit(file),
         Commands::Set { pair, file } => set(pair, file),
-        Commands::Get { key, file } => get(key, file),
+        Commands::Get { key, file } => get(key, file, cli.verbose),
         Commands::List {
             file,
-            verbose,
+            show_values,
             plain,
             json,
-        } => list(file, verbose, plain, json),
+        } => list(file, show_values, plain, json, cli.verbose),
         Commands::Dump {
             file,
             bash,
@@ -179,7 +183,7 @@ fn main() -> Result<()> {
                 export,
                 docker,
             };
-            dump(file, options)
+            dump(file, options, cli.verbose)
         }
     }
 }
@@ -353,9 +357,12 @@ fn set(pair: String, file: PathBuf) -> Result<()> {
     Ok(())
 }
 
-fn get(key: String, file: Option<PathBuf>) -> Result<()> {
+fn get(key: String, file: Option<PathBuf>, verbose_files: bool) -> Result<()> {
     let manager = SecretManager::new().context("Failed to load encryption key")?;
     let value = if let Some(file_path) = file {
+        if verbose_files {
+            eprintln!("Reading: {}", file_path.display());
+        }
         let content = std::fs::read_to_string(&file_path)
             .with_context(|| format!("Failed to read {}", file_path.display()))?;
         let vars = parse_env_file(&content)?;
@@ -363,20 +370,19 @@ fn get(key: String, file: Option<PathBuf>) -> Result<()> {
             .with_context(|| format!("Key '{}' not found in {}", key, file_path.display()))?
             .clone()
     } else {
-        // Scan ordered files similar to EnvLoader
+        // Scan ordered files with dynamic dimension discovery
         let loader = dotenvage::EnvLoader::with_manager(manager.clone());
-        let paths = loader.resolve_env_paths(Path::new("."));
-        let mut found: Option<String> = None;
-        for p in paths {
-            if p.exists() {
-                let content = std::fs::read_to_string(&p)?;
-                let vars = parse_env_file(&content)?;
-                if let Some(v) = vars.get(&key) {
-                    found = Some(v.clone());
-                }
+        let (vars, paths) = loader
+            .collect_all_vars_from_dir(Path::new("."))
+            .context("Failed to collect environment variables")?;
+        if verbose_files {
+            for p in &paths {
+                eprintln!("Reading: {}", p.display());
             }
         }
-        found.with_context(|| format!("Key '{}' not found in any .env* file", key))?
+        vars.get(&key)
+            .with_context(|| format!("Key '{}' not found in any .env* file", key))?
+            .clone()
     };
     let decrypted = manager
         .decrypt_value(&value)
@@ -385,7 +391,13 @@ fn get(key: String, file: Option<PathBuf>) -> Result<()> {
     Ok(())
 }
 
-fn list(file: Option<PathBuf>, verbose: bool, plain: bool, json: bool) -> Result<()> {
+fn list(
+    file: Option<PathBuf>,
+    show_values: bool,
+    plain: bool,
+    json: bool,
+    verbose_files: bool,
+) -> Result<()> {
     let manager = SecretManager::new().context("Failed to load encryption key")?;
 
     // Collect variables from either a specific file or all .env* files
@@ -394,22 +406,21 @@ fn list(file: Option<PathBuf>, verbose: bool, plain: bool, json: bool) -> Result
         if !file_path.exists() {
             anyhow::bail!("File not found: {}", file_path.display());
         }
+        if verbose_files {
+            eprintln!("Reading: {}", file_path.display());
+        }
         let content = std::fs::read_to_string(&file_path)
             .with_context(|| format!("Failed to read {}", file_path.display()))?;
         parse_env_file(&content)?
     } else {
-        // Scan all .env* files in standard order
+        // Scan all .env* files with dynamic dimension discovery
         let loader = dotenvage::EnvLoader::with_manager(manager.clone());
-        let paths = loader.resolve_env_paths(Path::new("."));
-        let mut all_vars = HashMap::new();
-
-        for path in paths {
-            if path.exists() {
-                let content = std::fs::read_to_string(&path)
-                    .with_context(|| format!("Failed to read {}", path.display()))?;
-                let file_vars = parse_env_file(&content)?;
-                // Later files override earlier files
-                all_vars.extend(file_vars);
+        let (all_vars, paths) = loader
+            .collect_all_vars_from_dir(Path::new("."))
+            .context("Failed to collect environment variables")?;
+        if verbose_files {
+            for path in &paths {
+                eprintln!("Reading: {}", path.display());
             }
         }
         all_vars
@@ -430,7 +441,7 @@ fn list(file: Option<PathBuf>, verbose: bool, plain: bool, json: bool) -> Result
             let is_encrypted = SecretManager::is_encrypted(value);
             let mut entry = HashMap::new();
             entry.insert("encrypted", is_encrypted.to_string());
-            if verbose {
+            if show_values {
                 let display_value = if is_encrypted {
                     manager
                         .decrypt_value(value)
@@ -452,7 +463,7 @@ fn list(file: Option<PathBuf>, verbose: bool, plain: bool, json: bool) -> Result
             }
             let value = vars.get(key).unwrap();
             let is_encrypted = SecretManager::is_encrypted(value);
-            print_list_entry(&manager, key, value, is_encrypted, verbose, plain)?;
+            print_list_entry(&manager, key, value, is_encrypted, show_values, plain)?;
         }
     }
     Ok(())
@@ -504,7 +515,7 @@ fn print_list_entry(
     Ok(())
 }
 
-fn dump(file: Option<PathBuf>, options: DumpOptions) -> Result<()> {
+fn dump(file: Option<PathBuf>, options: DumpOptions, verbose_files: bool) -> Result<()> {
     let manager = SecretManager::new().context("Failed to load encryption key")?;
 
     if let Some(file_path) = file {
@@ -512,23 +523,23 @@ fn dump(file: Option<PathBuf>, options: DumpOptions) -> Result<()> {
         if !file_path.exists() {
             anyhow::bail!("File not found: {}", file_path.display());
         }
+        if verbose_files {
+            eprintln!("Reading: {}", file_path.display());
+        }
         let content = std::fs::read_to_string(&file_path)
             .with_context(|| format!("Failed to read {}", file_path.display()))?;
         let all_vars = parse_env_file(&content)?;
         dump_vars(&manager, &all_vars, options)?;
     } else {
-        // Always merge/deduplicate when scanning multiple files (last value wins)
-        // This matches the actual precedence behavior and avoids confusion
+        // Collect all variables with dynamic dimension discovery
+        // This matches the actual precedence behavior (last value wins)
         let loader = dotenvage::EnvLoader::with_manager(manager.clone());
-        let paths = loader.resolve_env_paths(Path::new("."));
-        let mut merged_vars = HashMap::new();
-
-        for path in paths {
-            if path.exists() {
-                let content = std::fs::read_to_string(&path)?;
-                let file_vars = parse_env_file(&content)?;
-                // Later files override earlier files
-                merged_vars.extend(file_vars);
+        let (merged_vars, paths) = loader
+            .collect_all_vars_from_dir(Path::new("."))
+            .context("Failed to collect environment variables")?;
+        if verbose_files {
+            for path in &paths {
+                eprintln!("Reading: {}", path.display());
             }
         }
         dump_vars(&manager, &merged_vars, options)?;

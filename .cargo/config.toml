@@ -1,2 +1,7 @@
 [build]
 rustflags = ["-Dwarnings", "-Wmissing-docs"]
+
+# Run tests single-threaded to avoid environment variable race conditions
+# between test binaries that modify dimension config vars (NODE_ENV, etc.)
+[env]
+RUST_TEST_THREADS = "1"

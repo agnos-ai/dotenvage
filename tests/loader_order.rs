@@ -17,6 +17,36 @@ fn clear_env(keys: &[&str]) {
     }
 }
 
+/// Standard list of environment variables to clear before each test
+const CLEAR_ALL_DIMENSION_VARS: &[&str] = &[
+    "DOTENVAGE_ENV",
+    "EKG_ENV",
+    "VERCEL_ENV",
+    "NODE_ENV",
+    "DOTENVAGE_OS",
+    "EKG_OS",
+    "DOTENVAGE_ARCH",
+    "EKG_ARCH",
+    "CARGO_CFG_TARGET_ARCH",
+    "TARGET",
+    "TARGETARCH",
+    "TARGETPLATFORM",
+    "RUNNER_ARCH",
+    "DOTENVAGE_USER",
+    "EKG_USER",
+    "GITHUB_ACTOR",
+    "GITHUB_TRIGGERING_ACTOR",
+    "GITHUB_REPOSITORY_OWNER",
+    "USER",
+    "USERNAME",
+    "DOTENVAGE_VARIANT",
+    "EKG_VARIANT",
+    "VARIANT",
+    "GITHUB_EVENT_NAME",
+    "GITHUB_REF",
+    "PR_NUMBER",
+];
+
 #[test]
 #[serial]
 fn order_no_env_uses_local() {
@@ -328,4 +358,99 @@ fn case_insensitive_and_separators() {
     let loader = dotenvage::EnvLoader::with_manager(dotenvage::SecretManager::generate().unwrap());
     let got = names(loader.resolve_env_paths(tmp.path()));
     assert_eq!(got, vec![".ENV", ".ENV.PROD", ".ENV.PROD.DOCKER-S3.ALICE"]);
+}
+
+#[test]
+#[serial]
+fn order_variant_basic() {
+    clear_env(CLEAR_ALL_DIMENSION_VARS);
+    unsafe {
+        env::set_var("DOTENVAGE_ENV", "prod");
+    }
+    unsafe {
+        env::set_var("DOTENVAGE_VARIANT", "docker");
+    }
+    let tmp = tempfile::tempdir().unwrap();
+    std::fs::write(tmp.path().join(".env"), "").unwrap();
+    std::fs::write(tmp.path().join(".env.prod"), "").unwrap();
+    std::fs::write(tmp.path().join(".env.docker"), "").unwrap();
+    std::fs::write(tmp.path().join(".env.prod.docker"), "").unwrap();
+    let loader = dotenvage::EnvLoader::with_manager(dotenvage::SecretManager::generate().unwrap());
+    let got = names(loader.resolve_env_paths(tmp.path()));
+    assert_eq!(
+        got,
+        vec![".env", ".env.prod", ".env.docker", ".env.prod.docker"]
+    );
+}
+
+#[test]
+#[serial]
+fn order_all_five_dimensions() {
+    clear_env(CLEAR_ALL_DIMENSION_VARS);
+    unsafe {
+        env::set_var("DOTENVAGE_ENV", "prod");
+    }
+    unsafe {
+        env::set_var("DOTENVAGE_ARCH", "arm64");
+    }
+    unsafe {
+        env::set_var("DOTENVAGE_USER", "alice");
+    }
+    unsafe {
+        env::set_var("DOTENVAGE_VARIANT", "k8s");
+    }
+    let tmp = tempfile::tempdir().unwrap();
+    // Create files for a subset of combinations
+    std::fs::write(tmp.path().join(".env"), "").unwrap();
+    std::fs::write(tmp.path().join(".env.prod"), "").unwrap();
+    std::fs::write(tmp.path().join(".env.arm64"), "").unwrap();
+    std::fs::write(tmp.path().join(".env.alice"), "").unwrap();
+    std::fs::write(tmp.path().join(".env.k8s"), "").unwrap();
+    std::fs::write(tmp.path().join(".env.prod.arm64"), "").unwrap();
+    std::fs::write(tmp.path().join(".env.prod.alice"), "").unwrap();
+    std::fs::write(tmp.path().join(".env.prod.k8s"), "").unwrap();
+    std::fs::write(tmp.path().join(".env.arm64.alice"), "").unwrap();
+    std::fs::write(tmp.path().join(".env.alice.k8s"), "").unwrap();
+    std::fs::write(tmp.path().join(".env.prod.arm64.alice.k8s"), "").unwrap();
+    let loader = dotenvage::EnvLoader::with_manager(dotenvage::SecretManager::generate().unwrap());
+    let got = names(loader.resolve_env_paths(tmp.path()));
+    // Verify specificity ordering based on bitmask iteration
+    // Bitmask: bit0=ENV, bit1=OS, bit2=ARCH, bit3=USER, bit4=VARIANT
+    // Files are ordered by mask value (which naturally groups by part count)
+    assert_eq!(
+        got,
+        vec![
+            ".env",
+            ".env.prod",                 // mask 1
+            ".env.arm64",                // mask 4
+            ".env.prod.arm64",           // mask 5
+            ".env.alice",                // mask 8
+            ".env.prod.alice",           // mask 9
+            ".env.arm64.alice",          // mask 12
+            ".env.k8s",                  // mask 16
+            ".env.prod.k8s",             // mask 17
+            ".env.alice.k8s",            // mask 24
+            ".env.prod.arm64.alice.k8s"  // mask 29
+        ]
+    );
+}
+
+#[test]
+#[serial]
+fn order_variant_with_ekg_prefix() {
+    clear_env(CLEAR_ALL_DIMENSION_VARS);
+    unsafe {
+        env::set_var("EKG_VARIANT", "canary");
+    }
+    let tmp = tempfile::tempdir().unwrap();
+    std::fs::write(tmp.path().join(".env"), "").unwrap();
+    std::fs::write(tmp.path().join(".env.local"), "").unwrap();
+    std::fs::write(tmp.path().join(".env.canary"), "").unwrap();
+    std::fs::write(tmp.path().join(".env.local.canary"), "").unwrap();
+    let loader = dotenvage::EnvLoader::with_manager(dotenvage::SecretManager::generate().unwrap());
+    let got = names(loader.resolve_env_paths(tmp.path()));
+    assert_eq!(
+        got,
+        vec![".env", ".env.local", ".env.canary", ".env.local.canary"]
+    );
 }

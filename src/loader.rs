@@ -4,7 +4,10 @@
 //! files, and [`AutoDetectPatterns`] for automatically identifying sensitive
 //! variables.
 
-use std::collections::HashMap;
+use std::collections::{
+    HashMap,
+    HashSet,
+};
 use std::path::{
     Path,
     PathBuf,
@@ -226,11 +229,12 @@ impl std::str::FromStr for Os {
 ///
 /// 1. `.env` - Base configuration
 /// 2. `.env.<ENV>` - Environment-specific
-/// 3. `.env.<ENV>-<ARCH>` - Architecture-specific (if `<ARCH>` is set)
+/// 3. `.env.<ENV>.<ARCH>` - Architecture-specific (if `<ARCH>` is set)
 /// 4. `.env.<USER>` - User-specific overrides (if `<USER>` is set)
 /// 5. `.env.<ENV>.<USER>` - User overrides for specific environment
-/// 6. `.env.<ENV>-<ARCH>.<USER>` - User overrides for env+arch combo
-/// 7. `.env.pr-<PR_NUMBER>` - PR-specific (GitHub Actions only)
+/// 6. `.env.<ENV>.<ARCH>.<USER>` - User overrides for env+arch combo
+/// 7. `.env.<VARIANT>` - Variant-specific (e.g., docker, kubernetes)
+/// 8. `.env.pr-<PR_NUMBER>` - PR-specific (GitHub Actions only)
 ///
 /// **Note**: Separators can be either `.` or `-` (e.g., `.env.local` or
 /// `.env-local`)
@@ -240,9 +244,12 @@ impl std::str::FromStr for Os {
 /// The following placeholders are resolved from environment variables:
 ///
 /// - **`<ENV>`**: Environment name (see [`resolve_env()`](Self::resolve_env))
+/// - **`<OS>`**: Operating system (see [`resolve_os()`](Self::resolve_os))
 /// - **`<ARCH>`**: Architecture name (see
 ///   [`resolve_arch()`](Self::resolve_arch))
 /// - **`<USER>`**: Username (see [`resolve_user()`](Self::resolve_user))
+/// - **`<VARIANT>`**: Deployment variant (see
+///   [`resolve_variant()`](Self::resolve_variant))
 /// - **`<PR_NUMBER>`**: Pull request number (see
 ///   [`resolve_pr_number()`](Self::resolve_pr_number))
 pub struct EnvLoader {
@@ -341,6 +348,22 @@ impl EnvLoader {
     /// Loads `.env` files from a specific directory using the same order as
     /// [`load`](Self::load).
     ///
+    /// This method implements **dynamic dimension discovery**: dimension
+    /// configuration values (like `NODE_ENV=production` or `VARIANT=docker`)
+    /// found in loaded files can cause additional files to be loaded.
+    ///
+    /// The loading algorithm:
+    /// 1. Load `.env` first (if it exists)
+    /// 2. Discover dimension configs from loaded values and set in environment
+    /// 3. Iteratively:
+    ///    - Compute file paths based on current dimension values
+    ///    - Find next unloaded file in specificity order
+    ///    - If none, break
+    ///    - Load file, discover new dimensions, update environment
+    /// 4. Set all accumulated variables in the process environment
+    ///
+    /// Files are never loaded twice - a `HashSet` tracks loaded paths.
+    ///
     /// # Errors
     ///
     /// Returns an error if any file cannot be read or parsed, or if
@@ -348,14 +371,52 @@ impl EnvLoader {
     pub fn load_from_dir(&self, dir: impl AsRef<Path>) -> SecretsResult<()> {
         let dir = dir.as_ref();
         let mut env_vars = HashMap::new();
+        let mut loaded_files: HashSet<PathBuf> = HashSet::new();
 
-        for path in self.resolve_env_paths(dir) {
-            if path.exists() {
-                let vars = self.load_env_file(&path)?;
-                env_vars.extend(vars);
+        // Step 1: Load base .env first
+        if let Some(base_path) = Self::find_file_case_insensitive(dir, ".env")
+            && base_path.exists()
+        {
+            let vars = self.load_env_file(&base_path)?;
+            env_vars.extend(vars.clone());
+            loaded_files.insert(base_path);
+
+            // Step 2: Discover dimensions from base file
+            for (key, value) in Self::discover_dimensions_from_vars(&vars) {
+                unsafe {
+                    std::env::set_var(&key, &value);
+                }
             }
         }
 
+        // Step 3: Iteratively load files and discover new dimensions
+        loop {
+            // Compute paths based on current dimension values
+            let candidate_paths = self.resolve_env_paths(dir);
+
+            // Find next unloaded file in specificity order
+            let next_file = candidate_paths
+                .into_iter()
+                .find(|p| !loaded_files.contains(p) && p.exists());
+
+            let Some(path) = next_file else {
+                break;
+            };
+
+            // Load the file
+            let vars = self.load_env_file(&path)?;
+            env_vars.extend(vars.clone());
+            loaded_files.insert(path);
+
+            // Discover new dimensions from this file
+            for (key, value) in Self::discover_dimensions_from_vars(&vars) {
+                unsafe {
+                    std::env::set_var(&key, &value);
+                }
+            }
+        }
+
+        // Step 4: Set all accumulated variables in process environment
         for (k, v) in env_vars {
             unsafe {
                 std::env::set_var(k, v);
@@ -364,12 +425,129 @@ impl EnvLoader {
         Ok(())
     }
 
+    /// Collects all environment variables from `.env` files using dynamic
+    /// dimension discovery, without modifying the process environment.
+    ///
+    /// This method implements the same **dynamic dimension discovery** as
+    /// [`load_from_dir`](Self::load_from_dir), but returns the collected
+    /// variables instead of setting them in the environment.
+    ///
+    /// Use this method when you need the merged variables for inspection
+    /// (e.g., `list` or `dump` commands) without side effects.
+    ///
+    /// # Returns
+    ///
+    /// A tuple of (variables, loaded_paths) where:
+    /// - `variables` is a HashMap of all decrypted key-value pairs
+    /// - `loaded_paths` is the list of file paths that were loaded, in order
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if any file cannot be read or parsed, or if
+    /// decryption fails for any encrypted value.
+    pub fn collect_all_vars_from_dir(
+        &self,
+        dir: impl AsRef<Path>,
+    ) -> SecretsResult<(HashMap<String, String>, Vec<PathBuf>)> {
+        let dir = dir.as_ref();
+        let mut env_vars = HashMap::new();
+        let mut loaded_files: HashSet<PathBuf> = HashSet::new();
+        let mut loaded_order: Vec<PathBuf> = Vec::new();
+
+        // Save current environment state for dimension variables
+        let saved_env = Self::save_dimension_env_vars();
+
+        // Step 1: Load base .env first
+        if let Some(base_path) = Self::find_file_case_insensitive(dir, ".env")
+            && base_path.exists()
+        {
+            let vars = self.load_env_file(&base_path)?;
+            env_vars.extend(vars.clone());
+            loaded_order.push(base_path.clone());
+            loaded_files.insert(base_path);
+
+            // Step 2: Discover dimensions from base file
+            for (key, value) in Self::discover_dimensions_from_vars(&vars) {
+                unsafe {
+                    std::env::set_var(&key, &value);
+                }
+            }
+        }
+
+        // Step 3: Iteratively load files and discover new dimensions
+        loop {
+            // Compute paths based on current dimension values
+            let candidate_paths = self.resolve_env_paths(dir);
+
+            // Find next unloaded file in specificity order
+            let next_file = candidate_paths
+                .into_iter()
+                .find(|p| !loaded_files.contains(p) && p.exists());
+
+            let Some(path) = next_file else {
+                break;
+            };
+
+            // Load the file
+            let vars = self.load_env_file(&path)?;
+            env_vars.extend(vars.clone());
+            loaded_order.push(path.clone());
+            loaded_files.insert(path);
+
+            // Discover new dimensions from this file
+            for (key, value) in Self::discover_dimensions_from_vars(&vars) {
+                unsafe {
+                    std::env::set_var(&key, &value);
+                }
+            }
+        }
+
+        // Restore original environment state
+        Self::restore_dimension_env_vars(&saved_env);
+
+        Ok((env_vars, loaded_order))
+    }
+
+    /// Saves the current values of dimension environment variables.
+    fn save_dimension_env_vars() -> HashMap<String, Option<String>> {
+        let keys = [
+            "DOTENVAGE_ENV",
+            "EKG_ENV",
+            "VERCEL_ENV",
+            "NODE_ENV",
+            "DOTENVAGE_OS",
+            "EKG_OS",
+            "DOTENVAGE_ARCH",
+            "EKG_ARCH",
+            "DOTENVAGE_USER",
+            "EKG_USER",
+            "DOTENVAGE_VARIANT",
+            "EKG_VARIANT",
+            "VARIANT",
+        ];
+        keys.iter()
+            .map(|&k| (k.to_string(), std::env::var(k).ok()))
+            .collect()
+    }
+
+    /// Restores dimension environment variables to their saved state.
+    fn restore_dimension_env_vars(saved: &HashMap<String, Option<String>>) {
+        for (key, value) in saved {
+            unsafe {
+                match value {
+                    Some(v) => std::env::set_var(key, v),
+                    None => std::env::remove_var(key),
+                }
+            }
+        }
+    }
+
     /// Computes the ordered list of env file paths to load.
     ///
     /// This method uses a **power-set generation** approach: it resolves ENV,
-    /// OS, ARCH, and USER from the environment, then generates all possible
-    /// combinations of these values (maintaining canonical order: ENV, OS,
-    /// ARCH, USER).
+    /// OS, ARCH, USER, and VARIANT from the environment, then generates all
+    /// possible combinations of these values (maintaining canonical order:
+    /// ENV, OS, ARCH, USER, VARIANT).
     ///
     /// Files are loaded in specificity order - more parts means more specific,
     /// which means higher precedence.
@@ -380,24 +558,18 @@ impl EnvLoader {
     ///
     /// # Examples
     ///
-    /// With `ENV=local`, `OS=linux`, `ARCH=amd64`, `USER=alice`, this
-    /// generates:
+    /// With `ENV=local`, `OS=linux`, `ARCH=amd64`, `USER=alice`,
+    /// `VARIANT=docker`, this generates all combinations like:
     /// - `.env`
     /// - `.env.local`
     /// - `.env.linux`
     /// - `.env.amd64`
     /// - `.env.alice`
+    /// - `.env.docker`
     /// - `.env.local.linux`
-    /// - `.env.local.amd64`
-    /// - `.env.local.alice`
-    /// - `.env.linux.amd64`
-    /// - `.env.linux.alice`
-    /// - `.env.amd64.alice`
-    /// - `.env.local.linux.amd64`
-    /// - `.env.local.linux.alice`
-    /// - `.env.local.amd64.alice`
-    /// - `.env.linux.amd64.alice`
-    /// - `.env.local.linux.amd64.alice`
+    /// - `.env.local.docker`
+    /// - ... (all 31 non-empty subsets)
+    /// - `.env.local.linux.amd64.alice.docker`
     /// - `.env.pr-<NUMBER>` (if applicable)
     pub fn resolve_env_paths(&self, dir: &Path) -> Vec<PathBuf> {
         let mut paths: Vec<PathBuf> = Vec::new();
@@ -414,15 +586,16 @@ impl EnvLoader {
         let os = Self::resolve_os();
         let arch = Self::resolve_arch();
         let user = Self::resolve_user();
+        let variant = Self::resolve_variant();
 
-        // Generate power set: all combinations of [env, os, arch, user]
-        // We use a bitmask approach: 4 bits for 4 optional values
-        // Bit 0 = ENV, Bit 1 = OS, Bit 2 = ARCH, Bit 3 = USER
-        for mask in 1..16 {
-            // mask from 1 to 15 (excluding 0 which is just .env)
+        // Generate power set: all combinations of [env, os, arch, user, variant]
+        // We use a bitmask approach: 5 bits for 5 optional values
+        // Bit 0 = ENV, Bit 1 = OS, Bit 2 = ARCH, Bit 3 = USER, Bit 4 = VARIANT
+        for mask in 1..32 {
+            // mask from 1 to 31 (excluding 0 which is just .env)
             let mut parts = Vec::new();
 
-            // Maintain canonical order: ENV, OS, ARCH, USER
+            // Maintain canonical order: ENV, OS, ARCH, USER, VARIANT
             if mask & 1 != 0 {
                 parts.push(env.as_str());
             }
@@ -445,6 +618,13 @@ impl EnvLoader {
                     parts.push(u.as_str());
                 } else {
                     continue; // Skip this combination if USER not available
+                }
+            }
+            if mask & 16 != 0 {
+                if let Some(ref v) = variant {
+                    parts.push(v.as_str());
+                } else {
+                    continue; // Skip this combination if VARIANT not available
                 }
             }
 
@@ -615,24 +795,14 @@ impl EnvLoader {
         &self,
         dir: impl AsRef<Path>,
     ) -> SecretsResult<Vec<String>> {
-        use std::collections::HashSet;
+        let (vars, _paths) = self.collect_all_vars_from_dir(dir)?;
 
-        let dir = dir.as_ref();
-        let mut seen = HashSet::new();
-
-        for path in self.resolve_env_paths(dir) {
-            if path.exists() {
-                let vars = self.load_env_file(&path)?;
-                // Filter out AGE key variables - we don't expose these secrets
-                seen.extend(
-                    vars.keys()
-                        .filter(|k| !Self::is_age_key_variable(k))
-                        .cloned(),
-                );
-            }
-        }
-
-        Ok(seen.into_iter().collect())
+        // Filter out AGE key variables - we don't expose these secrets
+        Ok(vars
+            .keys()
+            .filter(|k| !Self::is_age_key_variable(k))
+            .cloned()
+            .collect())
     }
 
     /// Write all merged .env variables in KEY=VALUE format to a writer.
@@ -692,16 +862,8 @@ impl EnvLoader {
         dir: impl AsRef<Path>,
         mut writer: W,
     ) -> SecretsResult<()> {
-        let dir = dir.as_ref();
-
-        // Load and merge all .env files in standard order
-        let mut merged_vars = HashMap::new();
-        for path in self.resolve_env_paths(dir) {
-            if path.exists() {
-                let vars = self.load_env_file(&path)?;
-                merged_vars.extend(vars);
-            }
-        }
+        // Use dynamic discovery to collect all variables
+        let (merged_vars, _paths) = self.collect_all_vars_from_dir(dir)?;
 
         // Sort keys for consistent output
         let mut keys: Vec<_> = merged_vars.keys().cloned().collect();
@@ -853,6 +1015,118 @@ impl EnvLoader {
         }
 
         None
+    }
+
+    /// Discovers dimension configuration from loaded environment variables.
+    ///
+    /// This function checks loaded variables for dimension configuration values
+    /// and returns them as key-value pairs that should be set in the process
+    /// environment. This enables dynamic file loading where `.env` can set
+    /// `NODE_ENV=production`, causing `.env.production` to also be loaded.
+    ///
+    /// For each dimension, checks the following variables (in priority order):
+    /// - **ENV**: `DOTENVAGE_ENV`, `EKG_ENV`, `VERCEL_ENV`, `NODE_ENV`
+    /// - **OS**: `DOTENVAGE_OS`, `EKG_OS`
+    /// - **ARCH**: `DOTENVAGE_ARCH`, `EKG_ARCH`
+    /// - **USER**: `DOTENVAGE_USER`, `EKG_USER`
+    /// - **VARIANT**: `DOTENVAGE_VARIANT`, `EKG_VARIANT`, `VARIANT`
+    ///
+    /// Encrypted values are skipped since they cannot be decrypted at this
+    /// stage (the key may not have been discovered yet).
+    ///
+    /// # Returns
+    ///
+    /// A vector of `(key, value)` pairs for dimension configs found in the
+    /// loaded variables that are not already set in the process environment.
+    fn discover_dimensions_from_vars(vars: &HashMap<String, String>) -> Vec<(String, String)> {
+        let mut discovered = Vec::new();
+
+        // ENV dimension - check multiple variable names in priority order
+        let env_keys = ["DOTENVAGE_ENV", "EKG_ENV", "VERCEL_ENV", "NODE_ENV"];
+        if !env_keys
+            .iter()
+            .any(|k| std::env::var(k).ok().filter(|s| !s.is_empty()).is_some())
+        {
+            for key in &env_keys {
+                if let Some(value) = vars.get(*key)
+                    && !value.is_empty()
+                    && !SecretManager::is_encrypted(value)
+                {
+                    discovered.push((key.to_string(), value.clone()));
+                    break;
+                }
+            }
+        }
+
+        // OS dimension
+        let os_keys = ["DOTENVAGE_OS", "EKG_OS"];
+        if !os_keys
+            .iter()
+            .any(|k| std::env::var(k).ok().filter(|s| !s.is_empty()).is_some())
+        {
+            for key in &os_keys {
+                if let Some(value) = vars.get(*key)
+                    && !value.is_empty()
+                    && !SecretManager::is_encrypted(value)
+                {
+                    discovered.push((key.to_string(), value.clone()));
+                    break;
+                }
+            }
+        }
+
+        // ARCH dimension
+        let arch_keys = ["DOTENVAGE_ARCH", "EKG_ARCH"];
+        if !arch_keys
+            .iter()
+            .any(|k| std::env::var(k).ok().filter(|s| !s.is_empty()).is_some())
+        {
+            for key in &arch_keys {
+                if let Some(value) = vars.get(*key)
+                    && !value.is_empty()
+                    && !SecretManager::is_encrypted(value)
+                {
+                    discovered.push((key.to_string(), value.clone()));
+                    break;
+                }
+            }
+        }
+
+        // USER dimension
+        let user_keys = ["DOTENVAGE_USER", "EKG_USER"];
+        if !user_keys
+            .iter()
+            .any(|k| std::env::var(k).ok().filter(|s| !s.is_empty()).is_some())
+        {
+            for key in &user_keys {
+                if let Some(value) = vars.get(*key)
+                    && !value.is_empty()
+                    && !SecretManager::is_encrypted(value)
+                {
+                    discovered.push((key.to_string(), value.clone()));
+                    break;
+                }
+            }
+        }
+
+        // VARIANT dimension
+        let variant_keys = ["DOTENVAGE_VARIANT", "EKG_VARIANT", "VARIANT"];
+        if !variant_keys
+            .iter()
+            .any(|k| std::env::var(k).ok().filter(|s| !s.is_empty()).is_some())
+        {
+            for key in &variant_keys {
+                if let Some(value) = vars.get(*key)
+                    && !value.is_empty()
+                    && !SecretManager::is_encrypted(value)
+                {
+                    discovered.push((key.to_string(), value.clone()));
+                    break;
+                }
+            }
+        }
+
+        discovered
     }
 
     /// Resolves the `<ENV>` placeholder for environment-specific file names.
@@ -1083,6 +1357,45 @@ impl EnvLoader {
             .or_else(|| std::env::var("USER").ok().filter(|s| !s.is_empty()))
             .or_else(|| std::env::var("USERNAME").ok().filter(|s| !s.is_empty()))
             .map(|u| u.to_lowercase())
+    }
+
+    /// Resolves the `<VARIANT>` placeholder for variant-specific file names.
+    ///
+    /// The variant name is resolved from the first available environment
+    /// variable:
+    ///
+    /// 1. `DOTENVAGE_VARIANT` (preferred)
+    /// 2. `EKG_VARIANT`
+    /// 3. `VARIANT`
+    /// 4. Returns `None` if none are set
+    ///
+    /// The value is always converted to lowercase.
+    ///
+    /// This dimension is useful for deployment variants like:
+    /// - `docker` - Docker containerized deployment
+    /// - `kubernetes` or `k8s` - Kubernetes deployment
+    /// - `lambda` - AWS Lambda deployment
+    /// - `canary` - Canary release
+    /// - `blue` / `green` - Blue-green deployment variants
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use dotenvage::EnvLoader;
+    ///
+    /// // With VARIANT=docker, returns Some("docker")
+    /// // Without any variant set, returns None
+    /// if let Some(variant) = EnvLoader::resolve_variant() {
+    ///     println!("Variant: {}", variant);
+    /// }
+    /// ```
+    pub fn resolve_variant() -> Option<String> {
+        std::env::var("DOTENVAGE_VARIANT")
+            .ok()
+            .filter(|s| !s.is_empty())
+            .or_else(|| std::env::var("EKG_VARIANT").ok().filter(|s| !s.is_empty()))
+            .or_else(|| std::env::var("VARIANT").ok().filter(|s| !s.is_empty()))
+            .map(|v| v.to_lowercase())
     }
 
     /// Resolves the `<PR_NUMBER>` placeholder for PR-specific file names.

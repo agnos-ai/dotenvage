@@ -4,6 +4,7 @@ use std::fs;
 
 use dotenvage::SecretManager;
 use dotenvage::loader::EnvLoader;
+use serial_test::serial;
 use tempfile::TempDir;
 
 #[test]
@@ -145,4 +146,68 @@ fn test_dump_to_writer_quotes_special_values() {
     assert!(output.contains("VAR3=\"has\\\"quotes\""));
     assert!(output.contains("VAR4=\"\""));
     assert!(output.contains("VAR5=\"has=equals\""));
+}
+
+#[test]
+#[serial]
+fn test_dump_to_writer_with_dynamic_discovery() {
+    // Test that dump_to_writer uses dynamic dimension discovery
+    // This ensures variables from files loaded via discovered dimensions are
+    // included
+
+    // Clear dimension env vars to ensure clean test state
+    for var in [
+        "DOTENVAGE_ENV",
+        "EKG_ENV",
+        "VERCEL_ENV",
+        "NODE_ENV",
+        "DOTENVAGE_VARIANT",
+        "EKG_VARIANT",
+        "VARIANT",
+    ] {
+        unsafe {
+            std::env::remove_var(var);
+        }
+    }
+
+    let temp_dir = TempDir::new().unwrap();
+    let temp_path = temp_dir.path();
+
+    let manager = SecretManager::generate().unwrap();
+
+    // .env sets EKG_VARIANT=oxigraph (dimension discovery)
+    fs::write(
+        temp_path.join(".env"),
+        "BASE_VAR=base\nEKG_VARIANT=oxigraph\n",
+    )
+    .unwrap();
+
+    // .env.local is loaded (ENV defaults to local)
+    fs::write(temp_path.join(".env.local"), "LOCAL_VAR=local\n").unwrap();
+
+    // .env.local.oxigraph should be loaded via dynamic discovery
+    fs::write(
+        temp_path.join(".env.local.oxigraph"),
+        "OXIGRAPH_VAR=oxigraph_value\n",
+    )
+    .unwrap();
+
+    let loader = EnvLoader::with_manager(manager);
+
+    let mut buffer = Vec::new();
+    loader
+        .dump_to_writer_from_dir(temp_path, &mut buffer)
+        .unwrap();
+    let output = String::from_utf8(buffer).unwrap();
+
+    // Verify that OXIGRAPH_VAR is included (from dynamically discovered file)
+    assert!(
+        output.contains("OXIGRAPH_VAR=oxigraph_value"),
+        "dump_to_writer should use dynamic discovery to include variables \
+         from .env.local.oxigraph (loaded because EKG_VARIANT=oxigraph in .env). \
+         Output was: {}",
+        output
+    );
+    assert!(output.contains("BASE_VAR=base"));
+    assert!(output.contains("LOCAL_VAR=local"));
 }

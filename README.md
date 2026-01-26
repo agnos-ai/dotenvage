@@ -71,8 +71,8 @@ dotenvage get FLY_API_TOKEN
 # List all variables from all .env* files (merged in standard order)
 dotenvage list
 
-# List with lock icons (🔒 = encrypted)
-dotenvage list --verbose
+# List with decrypted values shown (🔒 = encrypted)
+dotenvage list --show-values
 
 # List in plain ASCII format (no icons, just variable names)
 dotenvage list --plain
@@ -81,10 +81,14 @@ dotenvage list --plain
 dotenvage list --json
 
 # List in JSON with values
-dotenvage list --json --verbose
+dotenvage list --json --show-values
 
 # List from a specific file only
 dotenvage list --file .env.local
+
+# Show which files are being read (works with any command)
+dotenvage --verbose list
+dotenvage -v dump
 
 # Dump all decrypted env vars (merges all .env* files with layering)
 dotenvage dump
@@ -143,9 +147,9 @@ order. Later files override values from earlier files.
 ### Loading Order
 
 Files are loaded using a **flexible power-set algorithm** that
-generates all possible combinations of ENV, OS, ARCH, and USER. This
-allows any combination you need without being constrained by a fixed
-hierarchy.
+generates all possible combinations of ENV, OS, ARCH, USER, and
+VARIANT. This allows any combination you need without being
+constrained by a fixed hierarchy.
 
 **Key principle**: All multi-part file names use **dots as separators
 only** (not dashes), ensuring unambiguous parsing.
@@ -154,14 +158,16 @@ Files are loaded in **specificity order** (later overrides earlier):
 
 1. **`.env`** - Base configuration (always first)
 2. **Single-part patterns**: `.env.<ENV>`, `.env.<OS>`, `.env.<ARCH>`,
-   `.env.<USER>`
+   `.env.<USER>`, `.env.<VARIANT>`
 3. **Two-part combinations**: `.env.<ENV>.<OS>`, `.env.<ENV>.<ARCH>`,
-   `.env.<ENV>.<USER>`, etc.
+   `.env.<ENV>.<USER>`, `.env.<ENV>.<VARIANT>`, etc.
 4. **Three-part combinations**: `.env.<ENV>.<OS>.<ARCH>`,
-   `.env.<ENV>.<OS>.<USER>`, etc.
-5. **Four-part combination**: `.env.<ENV>.<OS>.<ARCH>.<USER>` (most
-   specific)
-6. **`.env.pr-<NUMBER>`** - PR-specific (GitHub Actions only, always
+   `.env.<ENV>.<OS>.<USER>`, `.env.<ENV>.<OS>.<VARIANT>`, etc.
+5. **Four-part combinations**: `.env.<ENV>.<OS>.<ARCH>.<USER>`,
+   `.env.<ENV>.<OS>.<ARCH>.<VARIANT>`, etc.
+6. **Five-part combination**: `.env.<ENV>.<OS>.<ARCH>.<USER>.<VARIANT>`
+   (most specific)
+7. **`.env.pr-<NUMBER>`** - PR-specific (GitHub Actions only, always
    last)
 
 **All files can be safely committed to git** since secrets are
@@ -169,26 +175,32 @@ encrypted.
 
 #### Example Combinations
 
-With `ENV=prod`, `OS=linux`, `ARCH=amd64`, `USER=alice`, these files
-would be loaded (in order):
+With `ENV=prod`, `OS=linux`, `ARCH=amd64`, `USER=alice`,
+`VARIANT=docker`, these files would be loaded (in order, showing a
+subset):
 
 - `.env`
 - `.env.prod`
 - `.env.linux`
 - `.env.amd64`
 - `.env.alice`
+- `.env.docker`
 - `.env.prod.linux`
 - `.env.prod.amd64`
 - `.env.prod.alice`
+- `.env.prod.docker`
 - `.env.linux.amd64`
 - `.env.linux.alice`
-- `.env.amd64.alice`
-- `.env.prod.linux.amd64`
-- `.env.prod.linux.alice`
-- `.env.prod.amd64.alice`
-- `.env.linux.amd64.alice`
+- `.env.linux.docker`
+- ... (more combinations)
 - `.env.prod.linux.amd64.alice`
+- `.env.prod.linux.amd64.docker`
+- `.env.prod.linux.alice.docker`
+- `.env.prod.amd64.alice.docker`
+- `.env.linux.amd64.alice.docker`
+- `.env.prod.linux.amd64.alice.docker`
 
+With all 5 dimensions set, up to 31 file combinations are checked.
 You only need to create the files you use - the loader checks which
 exist.
 
@@ -200,6 +212,7 @@ exist.
 | `<OS>`        | `DOTENVAGE_OS`, `EKG_OS`, `CARGO_CFG_TARGET_OS`, `TARGET`, `RUNNER_OS`                                                 | Runtime detection if not set |
 | `<ARCH>`      | `DOTENVAGE_ARCH`, `EKG_ARCH`, `CARGO_CFG_TARGET_ARCH`, `TARGET`, `TARGETARCH`, `TARGETPLATFORM`, `RUNNER_ARCH`         | None if not detected         |
 | `<USER>`      | `DOTENVAGE_USER`, `EKG_USER`, `GITHUB_ACTOR`, `GITHUB_TRIGGERING_ACTOR`, `GITHUB_REPOSITORY_OWNER`, `USER`, `USERNAME` | System username              |
+| `<VARIANT>`   | `DOTENVAGE_VARIANT`, `EKG_VARIANT`, `VARIANT`                                                                          | None if not set              |
 | `<PR_NUMBER>` | `PR_NUMBER`, `GITHUB_REF`                                                                                              | GitHub Actions only          |
 
 ### Supported Operating Systems
@@ -276,6 +289,36 @@ export DATABASE_URL=postgres://localhost/dev
 export DATABASE_URL=postgres://localhost/mydb
 export SECRET_TOKEN=decrypted_value
 ```
+
+### Dynamic Dimension Discovery
+
+Dimension values (ENV, OS, ARCH, USER, VARIANT) can be discovered
+from loaded `.env` files, not just environment variables. This
+enables powerful chained configurations:
+
+```bash
+# .env - Sets the environment
+NODE_ENV=production
+
+# .env.production - Loaded because NODE_ENV=production was discovered
+VARIANT=docker
+
+# .env.production.docker - Loaded because VARIANT=docker was discovered
+DOCKER_HOST=tcp://localhost:2375
+```
+
+The loader iteratively:
+1. Loads `.env` first
+2. Discovers dimension values from loaded variables
+3. Computes additional file paths based on discovered values
+4. Repeats until no new files are found
+
+This allows you to set `NODE_ENV=staging` in `.env` and have
+`.env.staging` automatically loaded, which might set `VARIANT=canary`
+causing `.env.staging.canary` to load as well.
+
+**Note**: Encrypted dimension values are skipped during discovery
+(they can't be decrypted until the key is loaded).
 
 ### Bash-Compliant Escaping
 
