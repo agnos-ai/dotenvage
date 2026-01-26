@@ -138,9 +138,9 @@ git commit \
 
 ## Version Management
 
-Use `cargo version-info bump` for version management. This command
-updates Cargo.toml and creates a commit, but does NOT create tags
-(tags are created by CI after tests pass).
+Use `cargo version-info bump` (requires v0.0.14+) for version
+management. This command updates Cargo.toml and creates a commit,
+but does NOT create tags (tags are created by CI after tests pass).
 
 ```bash
 cargo version-info bump --patch   # 0.0.1 -> 0.0.2
