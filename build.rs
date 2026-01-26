@@ -1,10 +1,8 @@
-//! Build script to install git hooks via sloughi
-use sloughi::Sloughi;
-
+//! Build script to install git hooks via rhusky
 fn main() {
-    let _ = Sloughi::new()
-        .custom_path(".githooks")
-        .ignore_env("CI")
-        .ignore_env("GITHUB_ACTIONS")
-        .install();
+    rhusky::Rhusky::new()
+        .hooks_dir(".githooks")
+        .skip_in_env("GITHUB_ACTIONS")
+        .install()
+        .ok();
 }

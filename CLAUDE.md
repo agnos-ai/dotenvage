@@ -77,11 +77,15 @@ npm test
 
 Files load in specificity order (later overrides earlier):
 1. `.env` (base)
-2. Single-part: `.env.<ENV>`, `.env.<OS>`, `.env.<ARCH>`, `.env.<USER>`
-3. Two/three/four-part combinations
+2. Single-part: `.env.<ENV>`, `.env.<OS>`, `.env.<ARCH>`, `.env.<USER>`,
+   `.env.<VARIANT>`
+3. Two/three/four/five-part combinations
 4. `.env.pr-<NUMBER>` (GitHub Actions)
 
 Placeholders resolved from environment variables with fallbacks.
+Dimension values can also be discovered dynamically from loaded files
+(e.g., `NODE_ENV=production` in `.env` causes `.env.production` to
+load).
 
 ## Code Style
 
@@ -104,7 +108,7 @@ Placeholders resolved from environment variables with fallbacks.
 - Never execute `git push` - user must push manually
 - Prefer `git rebase` over `git merge` for linear history
 
-Git hooks in `.githooks/` are auto-installed via `sloughi` during
+Git hooks in `.githooks/` are auto-installed via `rhusky` during
 build.
 
 Use detailed multi-line commit messages:

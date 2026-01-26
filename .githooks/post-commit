@@ -1,10 +1,39 @@
 #!/usr/bin/env bash
-set -euo pipefail
 
 # Verify that the commit was actually signed
 echo "=== post-commit: verifying commit signature ===" >&2
 
-COMMIT_HASH=$(git rev-parse HEAD)
+COMMIT_HASH=$(git rev-parse HEAD 2>/dev/null) || {
+    echo "Error: Failed to get commit hash." >&2
+    exit 1
+}
+
+if [ -z "$COMMIT_HASH" ]; then
+    echo "Error: Failed to get commit hash." >&2
+    exit 1
+fi
+
+# Remove any Co-Authored-By lines from the commit message
+COMMIT_MSG=$(git log -1 --format='%B' "$COMMIT_HASH" 2>/dev/null) || {
+    echo "Error: Failed to get commit message." >&2
+    exit 1
+}
+
+CLEAN_MSG=$(echo "$COMMIT_MSG" | grep -v -i '^Co-Authored-By:' || true)
+if [ "$COMMIT_MSG" != "$CLEAN_MSG" ]; then
+    echo "Removing Co-Authored-By lines from commit message..." >&2
+    # Remove trailing blank lines
+    CLEAN_MSG=$(echo "$CLEAN_MSG" | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}')
+    git commit --amend --no-verify -m "$CLEAN_MSG" >/dev/null 2>&1 || {
+        echo "Error: Failed to amend commit to remove Co-Authored-By lines." >&2
+        exit 1
+    }
+    COMMIT_HASH=$(git rev-parse HEAD 2>/dev/null) || {
+        echo "Error: Failed to get amended commit hash." >&2
+        exit 1
+    }
+fi
+
 SIG_STATUS=$(git show --pretty=format:"%G?" --no-patch "$COMMIT_HASH" 2>/dev/null || echo "N")
 
 case "$SIG_STATUS" in
@@ -46,4 +75,3 @@ case "$SIG_STATUS" in
 esac
 
 exit 0
-

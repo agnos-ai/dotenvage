@@ -49,14 +49,14 @@ cargo build
 
 This will:
 
-- Install git hooks automatically via Sloughi (from `build.rs`)
+- Install git hooks automatically via rhusky (from `build.rs`)
 - Build the project
 - Verify your Rust toolchain is set up correctly
 
 ### 3. Git Hooks Installation
 
 Git hooks are automatically installed when you build the project using
-[Sloughi](https://crates.io/crates/sloughi). The `build.rs` script
+[rhusky](https://crates.io/crates/rhusky). The `build.rs` script
 installs hooks from `.githooks/` directory.
 
 If hooks aren't installed, simply run:

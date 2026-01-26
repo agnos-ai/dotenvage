@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-set -euo pipefail
 
 # Usage: commit-msg <path-to-commit-message>
 MSG_FILE="$1"
@@ -24,5 +23,3 @@ if ! grep -E -q '^[a-z]+\([a-z0-9][a-z0-9./-]*\)(!:)?\: ' "$MSG_FILE"; then
 fi
 
 exit 0
-
-
