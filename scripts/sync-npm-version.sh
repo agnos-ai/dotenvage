@@ -1,5 +1,5 @@
 #!/bin/bash
-# Sync npm package versions with Rust crate version
+# Sync all package versions with the main crate version
 # Usage: sync-npm-version.sh <version>
 
 VERSION="$1"
@@ -7,6 +7,19 @@ VERSION="$1"
 if [ -z "$VERSION" ]; then
   echo "Error: Version required"
   exit 1
+fi
+
+# Update [workspace.package] version in root Cargo.toml
+# This is separate from [package] version which cargo set-version handles
+if [ -f "Cargo.toml" ] && grep -q '^\[workspace\.package\]' Cargo.toml; then
+  if [ "$(uname)" == "Darwin" ]; then
+    # macOS: Update version line after [workspace.package] section
+    sed -i '' '/^\[workspace\.package\]/,/^\[/{s/^version = ".*"/version = "'"$VERSION"'"/;}' Cargo.toml
+  else
+    # Linux
+    sed -i '/^\[workspace\.package\]/,/^\[/{s/^version = ".*"/version = "'"$VERSION"'"/;}' Cargo.toml
+  fi
+  echo "✅ Updated [workspace.package] version to $VERSION"
 fi
 
 # Update npm/package.json
