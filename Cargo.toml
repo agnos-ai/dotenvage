@@ -72,3 +72,11 @@ predicates = "3.1"
 pkg-url = "{ repo }/releases/download/v{ version }/{ name }-{ target }.{ archive-format }"
 bin-dir = "{ bin }{ binary-ext }"
 pkg-fmt = "zip"
+
+[package.metadata.version-info]
+pre_bump_hooks = [
+    "./scripts/sync-npm-version.sh {{version}}"
+]
+additional_files = [
+    "npm/package.json"
+]

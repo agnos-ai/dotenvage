@@ -159,4 +159,5 @@ with CI's tag creation workflow, and requires a clean working tree.
 
 Single source of truth is workspace `Cargo.toml`. Version sync across
 npm is handled by `scripts/sync-npm-version.sh` (called by
-`cargo version-info bump` via cocogitto pre-bump hooks).
+`cargo version-info bump` via `pre_bump_hooks` in Cargo.toml's
+`[package.metadata.version-info]` section).
