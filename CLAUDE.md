@@ -34,7 +34,7 @@ of `.env*` files with encrypted sensitive values.
 ## Build Commands
 
 ```bash
-# Build (auto-installs git hooks via Sloughi)
+# Build (auto-installs git hooks via rhusky)
 cargo build
 
 # Format (requires nightly)
