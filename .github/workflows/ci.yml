@@ -418,7 +418,8 @@ jobs:
 
       - name: Publish to npmjs.org
         working-directory: npm
-        run: pnpm publish --access public --no-git-checks --provenance
+        # --ignore-scripts skips prepublishOnly since binaries are pre-built
+        run: pnpm publish --access public --no-git-checks --provenance --ignore-scripts
         continue-on-error: false
 
       - name: Publish Summary
