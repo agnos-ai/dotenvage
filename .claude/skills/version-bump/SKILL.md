@@ -1,34 +1,34 @@
 ---
 name: version-bump
-description: Bump the version of the dotenvage project using cargo version-info
+description:
+  Bump version in Cargo.toml using cargo-version-info bump command
 ---
 
-# Version Bump
+# Version Bump Skill
 
-Use this skill when the user asks to bump, increase, or release a new
-version of the project.
+Use this skill when bumping the version.
 
-## Prerequisites
+## Important: Use cargo version-info bump
 
-- `cargo-version-info` must be installed (v0.0.15 or later)
-- Working directory must be clean (no uncommitted changes)
+**Always use `cargo version-info bump`** for version management.
 
-## Commands
+**Never use `cog bump`** - it creates local tags which conflict with
+the CI workflow that creates tags after tests pass.
+
+## Bump Commands
 
 ```bash
-# Patch version bump (0.2.4 -> 0.2.5)
+# Patch bump: 0.2.4 -> 0.2.5
 cargo version-info bump --patch
 
-# Minor version bump (0.2.4 -> 0.3.0)
+# Minor bump: 0.2.4 -> 0.3.0
 cargo version-info bump --minor
 
-# Major version bump (0.2.4 -> 1.0.0)
+# Major bump: 0.2.4 -> 1.0.0
 cargo version-info bump --major
 ```
 
-## What It Does
-
-The `cargo version-info bump` command:
+## What the Bump Command Does
 
 1. Runs `pre_bump_hooks` defined in `Cargo.toml`:
    - Executes `./scripts/sync-npm-version.sh {{version}}`
@@ -39,6 +39,11 @@ The `cargo version-info bump` command:
 2. Bumps the version in the main `[package]` section
 3. Updates `Cargo.lock`
 4. Commits all changed files listed in `additional_files`
+5. Creates a git commit with message:
+   `chore(version): bump X.Y.Z -> A.B.C`
+
+The bump command uses hunk-level selective staging, so it only commits
+version-related changes. Any other uncommitted work remains unstaged.
 
 ## Files Updated
 
@@ -48,28 +53,70 @@ The `cargo version-info bump` command:
 - `npm/dotenvage-napi/Cargo.toml` - NAPI binding dependency
 - `package.json` - root workspace version
 
+## What the Bump Command Does NOT Do
+
+- Does NOT create git tags (CI creates tags after merge)
+- Does NOT push to remote (you must push manually)
+
+## Workflow
+
+1. Run `cargo version-info bump --patch` (or --minor/--major)
+2. Push the branch or create a PR
+3. Merge to main
+4. CI detects version change, creates tag, publishes release
+
+## Checking Current Version
+
+```bash
+# Get version from Cargo.toml
+cargo version-info current
+
+# Get computed build version (includes git SHA in dev)
+cargo version-info build-version
+
+# Check if version changed since last tag
+cargo version-info changed
+```
+
+## Dry Run
+
+To see what would change without making changes:
+
+```bash
+# Check current version
+cargo version-info current
+
+# Calculate what next patch would be
+cargo version-info next
+```
+
 ## After Bumping
 
-After the version bump commit is created:
+After running bump, verify the commit includes all version-related files:
 
-1. **Do NOT push** - let the user push manually
-2. The CI will detect the version change and:
-   - Create a git tag
-   - Generate changelog
-   - Create GitHub release
-   - Publish to crates.io
-   - Build binaries for all platforms
-   - Publish to npmjs.org
+```bash
+git log -1 --oneline
+git diff HEAD~1 --stat
+git status
+```
 
-## Troubleshooting
+**Important**: Check that all files modified by pre-bump hooks are
+included in the commit. If `git status` shows uncommitted version
+changes (from hooks), amend the commit:
 
-If the version bump fails or files are missing from the commit:
+```bash
+git add <missing-files>
+git commit --amend --no-edit
+```
 
-1. Check that `additional_files` in `Cargo.toml` includes all npm
-   files
-2. Verify pre_bump_hooks ran successfully (look for the sync
-   messages)
-3. If needed, manually stage files and amend the commit
+Then add those files to `additional_files` in Cargo.toml to prevent
+this in future bumps.
+
+Then push when ready:
+
+```bash
+git push origin <branch>
+```
 
 ## Configuration
 
@@ -86,3 +133,13 @@ additional_files = [
     "package.json"
 ]
 ```
+
+## Troubleshooting
+
+If the version bump fails or files are missing from the commit:
+
+1. Check that `additional_files` in `Cargo.toml` includes all npm
+   files
+2. Verify pre_bump_hooks ran successfully (look for the sync
+   messages)
+3. If needed, manually stage files and amend the commit
