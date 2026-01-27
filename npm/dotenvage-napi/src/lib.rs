@@ -105,23 +105,33 @@ impl JsEnvLoader {
         }
     }
 
-    /// Loads `.env` files from the current directory in standard order
-    /// Decrypted values are loaded into the process environment
+    /// Loads `.env` files from the current directory in standard order.
+    /// Decrypted values are loaded into the process environment.
+    /// Returns the list of file paths that were actually loaded, in load order.
     #[napi]
-    pub fn load(&self) -> Result<()> {
-        self.inner
+    pub fn load(&self) -> Result<Vec<String>> {
+        let paths = self
+            .inner
             .load()
             .map_err(|e| Error::new(Status::GenericFailure, format!("{}", e)))?;
-        Ok(())
+        Ok(paths
+            .iter()
+            .map(|p| p.to_string_lossy().to_string())
+            .collect())
     }
 
-    /// Loads `.env` files from a specific directory using the same order
+    /// Loads `.env` files from a specific directory using the same order.
+    /// Returns the list of file paths that were actually loaded, in load order.
     #[napi]
-    pub fn load_from_dir(&self, dir: String) -> Result<()> {
-        self.inner
+    pub fn load_from_dir(&self, dir: String) -> Result<Vec<String>> {
+        let paths = self
+            .inner
             .load_from_dir(Path::new(&dir))
             .map_err(|e| Error::new(Status::GenericFailure, format!("{}", e)))?;
-        Ok(())
+        Ok(paths
+            .iter()
+            .map(|p| p.to_string_lossy().to_string())
+            .collect())
     }
 
     /// Gets all variable names from all loaded `.env` files
@@ -156,8 +166,9 @@ impl JsEnvLoader {
     /// Note: This loads variables into the process environment first
     #[napi]
     pub fn get_all_variables(&self) -> Result<std::collections::HashMap<String, String>> {
-        // First load into environment
-        self.inner
+        // First load into environment (ignore returned paths)
+        let _ = self
+            .inner
             .load()
             .map_err(|e| Error::new(Status::GenericFailure, format!("{}", e)))?;
 
@@ -185,8 +196,9 @@ impl JsEnvLoader {
         &self,
         dir: String,
     ) -> Result<std::collections::HashMap<String, String>> {
-        // First load into environment
-        self.inner
+        // First load into environment (ignore returned paths)
+        let _ = self
+            .inner
             .load_from_dir(Path::new(&dir))
             .map_err(|e| Error::new(Status::GenericFailure, format!("{}", e)))?;
 

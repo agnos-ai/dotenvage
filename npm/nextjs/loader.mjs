@@ -40,14 +40,13 @@ export function loadEnv() {
     // This mutates process.env with decrypted values
     // Works in all environments: local, Vercel CI, production
     const loader = dotenvage.JsEnvLoader.new();
-    loader.load();
+    const loadedPaths = loader.load();
 
     const variableNames = loader.getAllVariableNames();
     const isProduction = process.env.NODE_ENV === "production";
 
-    // Get the list of loaded .env files for display
-    const envPaths = loader.resolveEnvPaths(process.cwd());
-    const envFiles = envPaths.map((p) => p.split("/").pop());
+    // Extract just the filenames from the actually loaded paths
+    const envFiles = loadedPaths.map((p) => p.split("/").pop());
 
     if (!isProduction || process.env.VERCEL) {
       console.log(

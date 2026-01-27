@@ -41,19 +41,15 @@ function loadEnvPreinit() {
     // Create loader and load environment variables from encrypted .env files
     // This mutates process.env with decrypted values
     const loader = dotenvage.JsEnvLoader.new();
-    loader.load();
+    const loadedPaths = loader.load();
 
     const variableNames = loader.getAllVariableNames();
     const isProduction = process.env.NODE_ENV === "production";
 
-    // Get the list of loaded .env files for display
-    const envPaths = loader.resolveEnvPaths(process.cwd());
-    const envFiles = envPaths.map((p) => p.split("/").pop());
+    // Extract just the filenames from the actually loaded paths
+    const envFiles = loadedPaths.map((p) => p.split("/").pop());
 
-    // Check which variables we loaded that didn't exist before
-    const newlyLoadedVars = variableNames.filter(
-      (name) => !existingVars.has(name)
-    );
+    // Check which variables already existed (for debugging info)
     const overwrittenVars = variableNames.filter((name) =>
       existingVars.has(name)
     );

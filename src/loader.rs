@@ -215,7 +215,8 @@ impl std::str::FromStr for Os {
 ///
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// // Load from current directory
-/// EnvLoader::new()?.load()?;
+/// let loaded_files = EnvLoader::new()?.load()?;
+/// println!("Loaded {} .env files", loaded_files.len());
 ///
 /// // Now encrypted values are available via std::env::var
 /// let api_key = std::env::var("API_KEY")?;
@@ -312,7 +313,8 @@ impl EnvLoader {
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// let manager = SecretManager::generate()?;
     /// let loader = EnvLoader::with_manager(manager);
-    /// loader.load()?;
+    /// let loaded_files = loader.load()?;
+    /// println!("Loaded {} .env files", loaded_files.len());
     /// # Ok(())
     /// # }
     /// ```
@@ -330,18 +332,23 @@ impl EnvLoader {
     /// Returns an error if any file cannot be read or parsed, or if
     /// decryption fails for any encrypted value.
     ///
+    /// # Returns
+    ///
+    /// Returns the list of file paths that were actually loaded, in load order.
+    ///
     /// # Examples
     ///
     /// ```rust,no_run
     /// use dotenvage::EnvLoader;
     ///
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// EnvLoader::new()?.load()?;
+    /// let loaded_files = EnvLoader::new()?.load()?;
+    /// println!("Loaded {} .env files", loaded_files.len());
     /// let secret = std::env::var("API_TOKEN")?;
     /// # Ok(())
     /// # }
     /// ```
-    pub fn load(&self) -> SecretsResult<()> {
+    pub fn load(&self) -> SecretsResult<Vec<PathBuf>> {
         self.load_from_dir(".")
     }
 
@@ -364,14 +371,19 @@ impl EnvLoader {
     ///
     /// Files are never loaded twice - a `HashSet` tracks loaded paths.
     ///
+    /// # Returns
+    ///
+    /// Returns the list of file paths that were actually loaded, in load order.
+    ///
     /// # Errors
     ///
     /// Returns an error if any file cannot be read or parsed, or if
     /// decryption fails for any encrypted value.
-    pub fn load_from_dir(&self, dir: impl AsRef<Path>) -> SecretsResult<()> {
+    pub fn load_from_dir(&self, dir: impl AsRef<Path>) -> SecretsResult<Vec<PathBuf>> {
         let dir = dir.as_ref();
         let mut env_vars = HashMap::new();
         let mut loaded_files: HashSet<PathBuf> = HashSet::new();
+        let mut loaded_order: Vec<PathBuf> = Vec::new();
 
         // Step 1: Load base .env first
         if let Some(base_path) = Self::find_file_case_insensitive(dir, ".env")
@@ -379,6 +391,7 @@ impl EnvLoader {
         {
             let vars = self.load_env_file(&base_path)?;
             env_vars.extend(vars.clone());
+            loaded_order.push(base_path.clone());
             loaded_files.insert(base_path);
 
             // Step 2: Discover dimensions from base file
@@ -406,6 +419,7 @@ impl EnvLoader {
             // Load the file
             let vars = self.load_env_file(&path)?;
             env_vars.extend(vars.clone());
+            loaded_order.push(path.clone());
             loaded_files.insert(path);
 
             // Discover new dimensions from this file
@@ -422,7 +436,7 @@ impl EnvLoader {
                 std::env::set_var(k, v);
             }
         }
-        Ok(())
+        Ok(loaded_order)
     }
 
     /// Collects all environment variables from `.env` files using dynamic

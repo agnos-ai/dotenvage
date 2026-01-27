@@ -7,12 +7,16 @@ export declare class JsEnvLoader {
   /** Creates an EnvLoader with a specific SecretManager */
   static withManager(manager: JsSecretManager): JsEnvLoader
   /**
-   * Loads `.env` files from the current directory in standard order
-   * Decrypted values are loaded into the process environment
+   * Loads `.env` files from the current directory in standard order.
+   * Decrypted values are loaded into the process environment.
+   * Returns the list of file paths that were actually loaded, in load order.
    */
-  load(): void
-  /** Loads `.env` files from a specific directory using the same order */
-  loadFromDir(dir: string): void
+  load(): Array<string>
+  /**
+   * Loads `.env` files from a specific directory using the same order.
+   * Returns the list of file paths that were actually loaded, in load order.
+   */
+  loadFromDir(dir: string): Array<string>
   /** Gets all variable names from all loaded `.env` files */
   getAllVariableNames(): Array<string>
   /** Gets all variable names from `.env` files in a specific directory */
