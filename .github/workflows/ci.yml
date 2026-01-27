@@ -345,6 +345,7 @@ jobs:
     name: Publish All Packages
     runs-on: ubuntu-latest
     needs: [build-and-upload-binaries, version-check]
+    environment: pypi  # Required for PyPI Trusted Publishing
     permissions:
       contents: read
       id-token: write # Required for OIDC authentication (npm/PyPI Trusted Publishing)
@@ -454,17 +455,12 @@ jobs:
         run: pnpm publish --access public --no-git-checks --provenance --ignore-scripts
         continue-on-error: false
 
-      # Publish to PyPI
+      # Publish to PyPI (using Trusted Publishing / OIDC)
       - name: Publish to PyPI
-        run: |
-          if [ -d "python-wheels" ] && [ "$(ls -A python-wheels/*.whl 2>/dev/null)" ]; then
-            uv tool run twine upload python-wheels/*.whl
-          else
-            echo "⚠️  No Python wheels found, skipping PyPI publish"
-          fi
-        env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: python-wheels/
+          skip-existing: true
 
       # Summary
       - name: Publish Summary
