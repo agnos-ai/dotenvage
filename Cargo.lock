@@ -420,7 +420,7 @@ dependencies = [
 
 [[package]]
 name = "dotenvage"
-version = "0.2.4"
+version = "0.2.5"
 dependencies = [
  "age",
  "anyhow",
@@ -439,7 +439,7 @@ dependencies = [
 
 [[package]]
 name = "dotenvage-napi"
-version = "0.2.4"
+version = "0.2.5"
 dependencies = [
  "age",
  "dotenvage",

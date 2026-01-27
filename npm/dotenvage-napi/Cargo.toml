@@ -13,7 +13,7 @@ publish = false
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-dotenvage = { path = "../../", version = "0.2.3" }
+dotenvage = { path = "../../", version = "0.2.5" }
 age = { version = "0.11.2", features = ["armor"] }
 napi = { version = "3.5.1", default-features = false, features = [
     "napi6",
