@@ -1,0 +1,76 @@
+[build-system]
+requires = ["maturin>=1.7,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "dotenvage"
+version = "0.2.5"
+description = "Python bindings for dotenvage - encrypt secrets in .env files using age encryption"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "CC-BY-SA-4.0"
+authors = [
+    { name = "Jacobus Geluk", email = "jacobus.geluk@dataroad.com" }
+]
+keywords = ["dotenv", "age", "encryption", "secrets", "environment"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Rust",
+    "Topic :: Security :: Cryptography",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+
+[project.urls]
+Homepage = "https://github.com/dataroadinc/dotenvage"
+Repository = "https://github.com/dataroadinc/dotenvage"
+Documentation = "https://docs.rs/dotenvage"
+
+[dependency-groups]
+dev = [
+    "maturin>=1.7",
+    "pytest>=8.0",
+    "ruff>=0.9",
+]
+
+[tool.maturin]
+manifest-path = "dotenvage-pyo3/Cargo.toml"
+module-name = "dotenvage"
+python-source = "."
+features = ["pyo3/extension-module"]
+include = ["dotenvage.pyi", "py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 88
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # pyflakes
+    "I",      # isort
+    "B",      # flake8-bugbear
+    "C4",     # flake8-comprehensions
+    "UP",     # pyupgrade
+    "ARG",    # flake8-unused-arguments
+    "SIM",    # flake8-simplify
+]
+ignore = [
+    "E501",   # line too long (handled by formatter)
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["dotenvage"]

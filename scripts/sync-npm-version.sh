@@ -41,6 +41,26 @@ if [ -f "npm/dotenvage-napi/Cargo.toml" ]; then
   echo "✅ Updated npm/dotenvage-napi/Cargo.toml dependency to $VERSION"
 fi
 
+# Update python/pyproject.toml
+if [ -f "python/pyproject.toml" ]; then
+  if [ "$(uname)" == "Darwin" ]; then
+    sed -i '' "s/^version = \".*\"/version = \"$VERSION\"/" python/pyproject.toml
+  else
+    sed -i "s/^version = \".*\"/version = \"$VERSION\"/" python/pyproject.toml
+  fi
+  echo "✅ Updated python/pyproject.toml version to $VERSION"
+fi
+
+# Update python/dotenvage-pyo3/Cargo.toml dependency version
+if [ -f "python/dotenvage-pyo3/Cargo.toml" ]; then
+  if [ "$(uname)" == "Darwin" ]; then
+    sed -i '' "s/dotenvage = { path = \"..\/..\/\", version = \".*\" }/dotenvage = { path = \"..\/..\/\", version = \"$VERSION\" }/" python/dotenvage-pyo3/Cargo.toml
+  else
+    sed -i "s/dotenvage = { path = \"..\/..\/\", version = \".*\" }/dotenvage = { path = \"..\/..\/\", version = \"$VERSION\" }/" python/dotenvage-pyo3/Cargo.toml
+  fi
+  echo "✅ Updated python/dotenvage-pyo3/Cargo.toml dependency to $VERSION"
+fi
+
 # Update root package.json if it exists and has a version field
 if [ -f "package.json" ] && grep -q '"version":' package.json; then
   if [ "$(uname)" == "Darwin" ]; then

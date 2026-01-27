@@ -1,11 +1,11 @@
 [workspace]
-members = ["npm/dotenvage-napi"]
+members = ["npm/dotenvage-napi", "python/dotenvage-pyo3"]
 resolver = "2"
 
 [workspace.package]
 version = "0.2.5"
 edition = "2024"
-authors = ["Jacobus Geluk <jacobus@dataroad.com>"]
+authors = ["Jacobus Geluk <jacobus.geluk@dataroad.com>"]
 repository = "https://github.com/dataroadinc/dotenvage"
 rust-version = "1.93.0"
 license-file = "LICENSE"
@@ -80,5 +80,7 @@ pre_bump_hooks = [
 additional_files = [
     "npm/package.json",
     "npm/dotenvage-napi/Cargo.toml",
+    "python/pyproject.toml",
+    "python/dotenvage-pyo3/Cargo.toml",
     "package.json"
 ]

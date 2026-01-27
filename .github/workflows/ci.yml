@@ -82,6 +82,39 @@ jobs:
         working-directory: npm
         run: pnpm test
 
+  # Run Python tests
+  test-python:
+    name: Test Python (Python ${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ["3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Setup Python
+        run: uv python install ${{ matrix.python }}
+      - name: Install Rust (for maturin build)
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+      - name: Install dependencies
+        working-directory: python
+        run: uv sync --dev
+      - name: Build and install Python bindings
+        working-directory: python
+        run: uv run maturin develop
+      - name: Run ruff check
+        working-directory: python
+        run: uv run ruff check .
+      - name: Run ruff format check
+        working-directory: python
+        run: uv run ruff format --check .
+      - name: Run Python tests
+        working-directory: python
+        run: uv run pytest tests/ -v
+
   # Detect version changes and prepare for release
   version-check:
     name: Check Version
@@ -122,11 +155,11 @@ jobs:
             echo "ℹ️  Version unchanged: $CARGO_VERSION"
           fi
 
-  # Release: Tag, Changelog, GitHub Release, and Publish
-  release:
-    name: Release
+  # Create Release: Tag, Changelog, GitHub Release (NO publishing)
+  create-release:
+    name: Create Release
     runs-on: ubuntu-latest
-    needs: [fmt, clippy, test, test-npm, version-check]
+    needs: [fmt, clippy, test, test-npm, test-python, version-check]
     if: needs.version-check.outputs.version_changed == 'true'
     permissions:
       contents: write
@@ -191,42 +224,16 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: actions-rust-lang/setup-rust-toolchain@v1
-
-      - name: Verify version sync
-        run: |
-          # Get workspace version (the source of truth)
-          WORKSPACE_VERSION=$(grep '^\[workspace\.package\]' -A 10 Cargo.toml | grep '^version' | head -1 | sed 's/.*"\(.*\)".*/\1/')
-          NPM_VERSION=$(grep '"version"' npm/package.json | head -1 | sed 's/.*"\(.*\)".*/\1/')
-
-          echo "Workspace version: $WORKSPACE_VERSION"
-          echo "NPM version: $NPM_VERSION"
-
-          if [ "$WORKSPACE_VERSION" != "$NPM_VERSION" ]; then
-            echo "❌ Version mismatch detected!"
-            echo "Workspace (Cargo.toml): $WORKSPACE_VERSION"
-            echo "NPM (package.json): $NPM_VERSION"
-            exit 1
-          fi
-          echo "✅ All versions are in sync: $WORKSPACE_VERSION"
-
-      - name: Publish to crates.io
-        run: cargo publish --allow-dirty
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO }}
-
       - name: Release Summary
         run: |
-          echo "🎉 Successfully released v${{ needs.version-check.outputs.new_version }}"
-          echo "📦 Published to crates.io: https://crates.io/crates/dotenvage"
+          echo "✅ Created GitHub release v${{ needs.version-check.outputs.new_version }}"
           echo "📝 GitHub Release: https://github.com/dataroadinc/dotenvage/releases/tag/v${{ needs.version-check.outputs.new_version }}"
-          echo "📚 Documentation: https://docs.rs/dotenvage/${{ needs.version-check.outputs.new_version }}"
-          echo "📦 npm package will be published after platform builds complete"
+          echo "⏳ Waiting for binary builds to complete before publishing packages..."
 
   build-and-upload-binaries:
     name: Build and Upload Binaries
     runs-on: ${{ matrix.platform.os }}
-    needs: [release, version-check]
+    needs: [create-release, version-check]
     permissions:
       contents: write
     strategy:
@@ -312,20 +319,45 @@ jobs:
           retention-days: 7
           if-no-files-found: error
 
-  # Publish npm package with all platform .node files
-  publish-npm:
-    name: Publish NPM Package
+      # Build Python wheels for this platform
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+      - name: Setup Python
+        run: uv python install 3.12
+      - name: Build Python wheel
+        working-directory: python
+        shell: bash
+        run: |
+          uv run maturin build \
+            --release \
+            --target ${{ matrix.platform.target }} \
+            --out dist/
+      - name: Upload Python wheel artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: python-wheels-${{ matrix.platform.target }}
+          path: python/dist/*.whl
+          retention-days: 7
+          if-no-files-found: error
+
+  # Publish all packages after successful binary builds
+  publish-all:
+    name: Publish All Packages
     runs-on: ubuntu-latest
     needs: [build-and-upload-binaries, version-check]
     permissions:
       contents: read
-      id-token: write # Required for OIDC authentication (npm Trusted Publishing)
+      id-token: write # Required for OIDC authentication (npm/PyPI Trusted Publishing)
     steps:
       - name: Checkout
         uses: actions/checkout@v6
         with:
           ref: refs/tags/v${{ needs.version-check.outputs.new_version }}
 
+      # Setup Rust for crates.io publish
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+
+      # Setup Node.js/pnpm for npm publish
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
@@ -336,7 +368,39 @@ jobs:
           node-version-file: ".nvmrc"
           registry-url: "https://registry.npmjs.org"
 
-      - name: Download all npm .node file artifacts
+      # Setup Python/uv for PyPI publish
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+      - name: Setup Python
+        run: uv python install 3.12
+
+      # Verify version sync across all packages
+      - name: Verify version sync
+        run: |
+          WORKSPACE_VERSION=$(grep '^\[workspace\.package\]' -A 10 Cargo.toml | grep '^version' | head -1 | sed 's/.*"\(.*\)".*/\1/')
+          NPM_VERSION=$(grep '"version"' npm/package.json | head -1 | sed 's/.*"\(.*\)".*/\1/')
+          PYTHON_VERSION=$(grep '^version' python/pyproject.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
+
+          echo "Workspace version: $WORKSPACE_VERSION"
+          echo "NPM version: $NPM_VERSION"
+          echo "Python version: $PYTHON_VERSION"
+
+          MISMATCH=0
+          if [ "$WORKSPACE_VERSION" != "$NPM_VERSION" ]; then
+            echo "❌ NPM version mismatch!"
+            MISMATCH=1
+          fi
+          if [ "$WORKSPACE_VERSION" != "$PYTHON_VERSION" ]; then
+            echo "❌ Python version mismatch!"
+            MISMATCH=1
+          fi
+          if [ "$MISMATCH" -eq 1 ]; then
+            exit 1
+          fi
+          echo "✅ All versions are in sync: $WORKSPACE_VERSION"
+
+      # Download npm .node files
+      - name: Download npm .node file artifacts
         uses: actions/download-artifact@v7
         with:
           pattern: npm-node-files-*
@@ -344,21 +408,16 @@ jobs:
           path: npm-artifacts/
       - name: Copy .node files to npm directory
         run: |
-          # Artifacts preserve npm/ directory structure
-          # Find and copy all .node files to npm/ directory
           if [ -d "npm-artifacts/npm" ]; then
             cp npm-artifacts/npm/*.node npm/ 2>/dev/null || true
           fi
-          # Also check for any .node files in npm-artifacts tree
           find npm-artifacts -name "*.node" -type f -exec cp {} npm/ \; || true
           echo "Copied .node files to npm/ directory"
           ls -lh npm/*.node 2>/dev/null || echo "No .node files found"
-
       - name: Install npm dependencies
         working-directory: npm
         run: pnpm install
-
-      - name: Verify all platform .node files are present
+      - name: Verify npm .node files
         working-directory: npm
         run: |
           echo "Verifying .node files:"
@@ -369,28 +428,52 @@ jobs:
             echo "⚠️  Warning: Expected more .node files (found $NODE_COUNT)"
           fi
 
-      - name: Verify npm and OIDC setup
-        working-directory: npm
+      # Download Python wheel artifacts
+      - name: Download Python wheel artifacts
+        uses: actions/download-artifact@v7
+        with:
+          pattern: python-wheels-*
+          merge-multiple: true
+          path: python-wheels/
+      - name: Verify Python wheels
         run: |
-          echo "🔍 Verifying npm OIDC setup..."
-          echo "npm version: $(npm --version)"
-          echo "pnpm version: $(pnpm --version)"
-          echo "Node version: $(node --version)"
-          echo ""
-          echo "📦 Package info:"
-          echo "  Name: $(node -p "require('./package.json').name")"
-          echo "  Version: $(node -p "require('./package.json').version")"
-          echo ""
-          echo "✅ OIDC authentication will be handled automatically during publish"
-          echo "   (Trusted Publisher should be configured on npmjs.com)"
+          echo "Verifying Python wheels:"
+          ls -lh python-wheels/*.whl 2>/dev/null || echo "No wheel files found"
+          WHEEL_COUNT=$(find python-wheels -name "*.whl" 2>/dev/null | wc -l | tr -d ' ')
+          echo "Found $WHEEL_COUNT wheel file(s)"
 
+      # Publish to crates.io
+      - name: Publish to crates.io
+        run: cargo publish --allow-dirty
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO }}
+
+      # Publish to npm
       - name: Publish to npmjs.org
         working-directory: npm
-        # --ignore-scripts skips prepublishOnly since binaries are pre-built
         run: pnpm publish --access public --no-git-checks --provenance --ignore-scripts
         continue-on-error: false
 
+      # Publish to PyPI
+      - name: Publish to PyPI
+        run: |
+          if [ -d "python-wheels" ] && [ "$(ls -A python-wheels/*.whl 2>/dev/null)" ]; then
+            uv tool run twine upload python-wheels/*.whl
+          else
+            echo "⚠️  No Python wheels found, skipping PyPI publish"
+          fi
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+
+      # Summary
       - name: Publish Summary
         run: |
-          echo "✅ Published npm package: https://www.npmjs.com/package/@dotenvage/node"
-          echo "Version: ${{ needs.version-check.outputs.new_version }}"
+          VERSION="${{ needs.version-check.outputs.new_version }}"
+          echo "🎉 Successfully published all packages for v$VERSION"
+          echo ""
+          echo "📦 crates.io: https://crates.io/crates/dotenvage/$VERSION"
+          echo "📦 npm: https://www.npmjs.com/package/@dotenvage/node/v/$VERSION"
+          echo "📦 PyPI: https://pypi.org/project/dotenvage/$VERSION/"
+          echo ""
+          echo "📚 Documentation: https://docs.rs/dotenvage/$VERSION"

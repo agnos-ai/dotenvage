@@ -1,0 +1,19 @@
+[package]
+name = "dotenvage-pyo3"
+description = "Python bindings for dotenvage using PyO3"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+license = "CC-BY-SA-4.0"
+publish = false
+
+[lib]
+name = "dotenvage"
+crate-type = ["cdylib"]
+
+[dependencies]
+dotenvage = { path = "../../", version = "0.2.5" }
+age = { version = "0.11.2", features = ["armor"] }
+pyo3 = { version = "0.27", features = ["extension-module"] }
