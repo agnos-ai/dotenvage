@@ -46,6 +46,10 @@ function loadEnvPreinit() {
     const variableNames = loader.getAllVariableNames();
     const isProduction = process.env.NODE_ENV === "production";
 
+    // Get the list of loaded .env files for display
+    const envPaths = loader.resolveEnvPaths(process.cwd());
+    const envFiles = envPaths.map((p) => p.split("/").pop());
+
     // Check which variables we loaded that didn't exist before
     const newlyLoadedVars = variableNames.filter(
       (name) => !existingVars.has(name)
@@ -58,6 +62,9 @@ function loadEnvPreinit() {
       console.log(
         `✓ Pre-initialized ${variableNames.length} environment variables from dotenvage`
       );
+      if (envFiles.length > 0) {
+        console.log(`  - Decrypted: ${envFiles.join(", ")}`);
+      }
       if (
         overwrittenVars.length > 0 &&
         process.env.NODE_ENV === "development"

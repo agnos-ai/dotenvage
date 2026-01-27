@@ -45,10 +45,17 @@ export function loadEnv() {
     const variableNames = loader.getAllVariableNames();
     const isProduction = process.env.NODE_ENV === "production";
 
+    // Get the list of loaded .env files for display
+    const envPaths = loader.resolveEnvPaths(process.cwd());
+    const envFiles = envPaths.map((p) => p.split("/").pop());
+
     if (!isProduction || process.env.VERCEL) {
       console.log(
         `✓ Loaded ${variableNames.length} environment variables from dotenvage`
       );
+      if (envFiles.length > 0) {
+        console.log(`  - Decrypted: ${envFiles.join(", ")}`);
+      }
     }
 
     loaded = true;
