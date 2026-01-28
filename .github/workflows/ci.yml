@@ -155,87 +155,13 @@ jobs:
             echo "ℹ️  Version unchanged: $CARGO_VERSION"
           fi
 
-  # Create Release: Tag, Changelog, GitHub Release (NO publishing)
-  create-release:
-    name: Create Release
-    runs-on: ubuntu-latest
+  # Build all artifacts BEFORE creating release
+  # This ensures we don't create a release if builds fail
+  build-artifacts:
+    name: Build Artifacts
+    runs-on: ${{ matrix.platform.os }}
     needs: [fmt, clippy, test, test-npm, test-python, version-check]
     if: needs.version-check.outputs.version_changed == 'true'
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Configure Git
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-
-      - name: Install cargo-binstall
-        if: runner.os == 'Linux'
-        run: |
-          curl -L --proto '=https' --tlsv1.2 -sSf \
-            https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh \
-            | bash
-
-      - name: Install Cocogitto via binstall
-        run: |
-          cargo binstall --no-confirm cocogitto
-          which cog  # Verify installation
-
-      - name: Ensure Release Tag Exists
-        run: |
-          VERSION="${{ needs.version-check.outputs.new_version }}"
-          TAG="v$VERSION"
-          if git rev-parse "$TAG" >/dev/null 2>&1; then
-            echo "Tag $TAG already exists."
-          else
-            git tag -a "$TAG" -m "Release $TAG"
-            echo "Created tag $TAG on HEAD."
-          fi
-
-      - name: Generate Changelog with Cocogitto
-        id: changelog
-        run: |
-          cog changelog --at v${{ needs.version-check.outputs.new_version }} > CHANGELOG.md
-
-      - name: Save Changelog to File
-        run: |
-          cat CHANGELOG.md
-          echo "Changelog generated for v${{ needs.version-check.outputs.new_version }}"
-
-      - name: Push Release Tag
-        run: |
-          VERSION="${{ needs.version-check.outputs.new_version }}"
-          git push origin "v$VERSION"
-          echo "✅ Pushed tag v$VERSION"
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{ needs.version-check.outputs.new_version }}
-          name: v${{ needs.version-check.outputs.new_version }}
-          body_path: CHANGELOG.md
-          draft: false
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Release Summary
-        run: |
-          echo "✅ Created GitHub release v${{ needs.version-check.outputs.new_version }}"
-          echo "📝 GitHub Release: https://github.com/dataroadinc/dotenvage/releases/tag/v${{ needs.version-check.outputs.new_version }}"
-          echo "⏳ Waiting for binary builds to complete before publishing packages..."
-
-  build-and-upload-binaries:
-    name: Build and Upload Binaries
-    runs-on: ${{ matrix.platform.os }}
-    needs: [create-release, version-check]
-    permissions:
-      contents: write
     strategy:
       matrix:
         platform:
@@ -254,8 +180,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
-        with:
-          ref: refs/tags/v${{ needs.version-check.outputs.new_version }}
 
       - name: Install Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
@@ -277,19 +201,40 @@ jobs:
           docker-images: false
           swap-storage: false
 
-      - name: Build and upload CLI binaries
-        uses: taiki-e/upload-rust-binary-action@v1
-        with:
-          bin: dotenvage
-          token: ${{ secrets.GITHUB_TOKEN }}
-          target: ${{ matrix.platform.target }}
-          archive: $bin-$target
-          checksum: sha256
-          manifest_path: Cargo.toml
-          ref: refs/tags/v${{ needs.version-check.outputs.new_version }}
-          zip: "all"
+      # Build CLI binary
+      - name: Build CLI binary
+        run: cargo build --release --bin dotenvage --target ${{ matrix.platform.target }}
 
-      # Build npm NAPI bindings for this platform
+      - name: Create CLI archive (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          mkdir -p artifacts
+          cp target/${{ matrix.platform.target }}/release/dotenvage artifacts/
+          cd artifacts
+          zip dotenvage-${{ matrix.platform.target }}.zip dotenvage
+          sha256sum dotenvage-${{ matrix.platform.target }}.zip > dotenvage-${{ matrix.platform.target }}.sha256
+
+      - name: Create CLI archive (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          mkdir -p artifacts
+          cp target/${{ matrix.platform.target }}/release/dotenvage.exe artifacts/
+          cd artifacts
+          7z a dotenvage-${{ matrix.platform.target }}.zip dotenvage.exe
+          sha256sum dotenvage-${{ matrix.platform.target }}.zip > dotenvage-${{ matrix.platform.target }}.sha256
+
+      - name: Upload CLI artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: cli-${{ matrix.platform.target }}
+          path: |
+            artifacts/dotenvage-${{ matrix.platform.target }}.zip
+            artifacts/dotenvage-${{ matrix.platform.target }}.sha256
+          retention-days: 7
+          if-no-files-found: error
+
+      # Build npm NAPI bindings
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
@@ -301,7 +246,7 @@ jobs:
       - name: Install npm dependencies
         working-directory: npm
         run: pnpm install
-      - name: Build NAPI bindings for platform
+      - name: Build NAPI bindings
         working-directory: npm
         shell: bash
         run: |
@@ -311,7 +256,7 @@ jobs:
             --platform \
             --release \
             --target ${{ matrix.platform.target }}
-      - name: Upload npm .node file artifact
+      - name: Upload npm .node artifact
         uses: actions/upload-artifact@v6
         with:
           name: npm-node-files-${{ matrix.platform.target }}
@@ -319,7 +264,7 @@ jobs:
           retention-days: 7
           if-no-files-found: error
 
-      # Build Python wheels for this platform
+      # Build Python wheels
       # Skip aarch64-pc-windows-msvc: no ARM64 Windows runners, can't cross-compile Python
       - name: Install uv
         if: matrix.platform.target != 'aarch64-pc-windows-msvc'
@@ -345,15 +290,98 @@ jobs:
           retention-days: 7
           if-no-files-found: error
 
-  # Publish all packages after successful binary builds
+  # Create release ONLY after all builds succeed
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: [build-artifacts, version-check]
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Install cargo-binstall
+        run: |
+          curl -L --proto '=https' --tlsv1.2 -sSf \
+            https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh \
+            | bash
+
+      - name: Install Cocogitto via binstall
+        run: |
+          cargo binstall --no-confirm cocogitto
+          which cog
+
+      - name: Create Release Tag
+        run: |
+          VERSION="${{ needs.version-check.outputs.new_version }}"
+          TAG="v$VERSION"
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists."
+          else
+            git tag -a "$TAG" -m "Release $TAG"
+            echo "Created tag $TAG"
+          fi
+
+      - name: Generate Changelog
+        run: |
+          cog changelog --at v${{ needs.version-check.outputs.new_version }} > CHANGELOG.md
+          cat CHANGELOG.md
+
+      - name: Push Release Tag
+        run: |
+          VERSION="${{ needs.version-check.outputs.new_version }}"
+          git push origin "v$VERSION"
+          echo "✅ Pushed tag v$VERSION"
+
+      # Download all CLI artifacts
+      - name: Download CLI artifacts
+        uses: actions/download-artifact@v7
+        with:
+          pattern: cli-*
+          merge-multiple: true
+          path: release-artifacts/
+
+      - name: List release artifacts
+        run: |
+          echo "Release artifacts:"
+          ls -lh release-artifacts/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.version-check.outputs.new_version }}
+          name: v${{ needs.version-check.outputs.new_version }}
+          body_path: CHANGELOG.md
+          draft: false
+          prerelease: false
+          files: |
+            release-artifacts/*.zip
+            release-artifacts/*.sha256
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Release Summary
+        run: |
+          echo "✅ Created GitHub release v${{ needs.version-check.outputs.new_version }}"
+          echo "📝 https://github.com/dataroadinc/dotenvage/releases/tag/v${{ needs.version-check.outputs.new_version }}"
+
+  # Publish all packages after release is created
   publish-all:
     name: Publish All Packages
     runs-on: ubuntu-latest
-    needs: [build-and-upload-binaries, version-check]
+    needs: [create-release, version-check]
     environment: pypi  # Required for PyPI Trusted Publishing
     permissions:
       contents: read
-      id-token: write # Required for OIDC authentication (npm/PyPI Trusted Publishing)
+      id-token: write  # Required for OIDC authentication (npm/PyPI Trusted Publishing)
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -414,12 +442,9 @@ jobs:
           path: npm-artifacts/
       - name: Copy .node files to npm directory
         run: |
-          if [ -d "npm-artifacts/npm" ]; then
-            cp npm-artifacts/npm/*.node npm/ 2>/dev/null || true
-          fi
-          find npm-artifacts -name "*.node" -type f -exec cp {} npm/ \; || true
+          find npm-artifacts -name "*.node" -type f -exec cp {} npm/ \;
           echo "Copied .node files to npm/ directory"
-          ls -lh npm/*.node 2>/dev/null || echo "No .node files found"
+          ls -lh npm/*.node
       - name: Install npm dependencies
         working-directory: npm
         run: pnpm install
@@ -427,11 +452,11 @@ jobs:
         working-directory: npm
         run: |
           echo "Verifying .node files:"
-          ls -lh *.node || echo "No .node files found"
+          ls -lh *.node
           NODE_COUNT=$(find . -name "*.node" | wc -l | tr -d ' ')
           echo "Found $NODE_COUNT .node file(s)"
           if [ "$NODE_COUNT" -lt 5 ]; then
-            echo "⚠️  Warning: Expected more .node files (found $NODE_COUNT)"
+            echo "⚠️  Warning: Expected at least 5 .node files (found $NODE_COUNT)"
           fi
 
       # Download Python wheel artifacts
@@ -444,9 +469,12 @@ jobs:
       - name: Verify Python wheels
         run: |
           echo "Verifying Python wheels:"
-          ls -lh python-wheels/*.whl 2>/dev/null || echo "No wheel files found"
-          WHEEL_COUNT=$(find python-wheels -name "*.whl" 2>/dev/null | wc -l | tr -d ' ')
+          ls -lh python-wheels/*.whl
+          WHEEL_COUNT=$(find python-wheels -name "*.whl" | wc -l | tr -d ' ')
           echo "Found $WHEEL_COUNT wheel file(s)"
+          if [ "$WHEEL_COUNT" -lt 5 ]; then
+            echo "⚠️  Warning: Expected at least 5 wheels (found $WHEEL_COUNT)"
+          fi
 
       # Publish to crates.io
       - name: Publish to crates.io
@@ -458,7 +486,6 @@ jobs:
       - name: Publish to npmjs.org
         working-directory: npm
         run: pnpm publish --access public --no-git-checks --provenance --ignore-scripts
-        continue-on-error: false
 
       # Publish to PyPI (using Trusted Publishing / OIDC)
       - name: Publish to PyPI
