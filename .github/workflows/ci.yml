@@ -320,11 +320,15 @@ jobs:
           if-no-files-found: error
 
       # Build Python wheels for this platform
+      # Skip aarch64-pc-windows-msvc: no ARM64 Windows runners, can't cross-compile Python
       - name: Install uv
+        if: matrix.platform.target != 'aarch64-pc-windows-msvc'
         uses: astral-sh/setup-uv@v5
       - name: Setup Python
+        if: matrix.platform.target != 'aarch64-pc-windows-msvc'
         run: uv python install 3.12
       - name: Build Python wheel
+        if: matrix.platform.target != 'aarch64-pc-windows-msvc'
         working-directory: python
         shell: bash
         run: |
@@ -333,6 +337,7 @@ jobs:
             --target ${{ matrix.platform.target }} \
             --out dist/
       - name: Upload Python wheel artifact
+        if: matrix.platform.target != 'aarch64-pc-windows-msvc'
         uses: actions/upload-artifact@v6
         with:
           name: python-wheels-${{ matrix.platform.target }}
