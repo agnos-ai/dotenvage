@@ -17,7 +17,7 @@ more `.gitignore` juggling or secret management headaches.
 ## Features
 
 - **Encrypt secrets in `.env` files** - Selective encryption of
-  sensitive keys using [age](https://age-encryption.org/) (X25519)
+  sensitive keys using [age](https://crates.io/crates/age) (X25519)
 - **Commit everything to git** - Encrypted values are safe to version
   control alongside your code
 - **Automatic file layering** - Load multiple `.env*` files with smart
