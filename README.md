@@ -1,10 +1,11 @@
 # dotenvage
 
 [![Crates.io](https://img.shields.io/crates/v/dotenvage.svg)](https://crates.io/crates/dotenvage)
+[![npm](https://img.shields.io/npm/v/@dotenvage/node.svg)](https://www.npmjs.com/package/@dotenvage/node)
+[![PyPI](https://img.shields.io/pypi/v/dotenvage.svg)](https://pypi.org/project/dotenvage/)
 [![Documentation](https://docs.rs/dotenvage/badge.svg)](https://docs.rs/dotenvage)
 [![CI](https://github.com/dataroadinc/dotenvage/workflows/CI%2FCD/badge.svg)](https://github.com/dataroadinc/dotenvage/actions)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/dataroadinc/dotenvage/blob/main/LICENSE)
-[![Downloads](https://img.shields.io/crates/d/dotenvage.svg)](https://crates.io/crates/dotenvage)
+[![License: CC BY-SA 4.0](https://img.shields.io/badge/License-CC_BY--SA_4.0-lightgrey.svg)](https://github.com/dataroadinc/dotenvage/blob/main/LICENSE)
 
 Dotenv with age encryption: encrypt/decrypt secrets in `.env` files.
 
@@ -13,15 +14,29 @@ all your `.env*` files to version control** - including production
 configs, user-specific settings, and files with sensitive data. No
 more `.gitignore` juggling or secret management headaches.
 
-- Selective encryption of sensitive keys
-- Uses age (X25519) for modern encryption
-- Library + CLI
-- CI-friendly (supports key via env var)
-- Automatic file layering with precedence rules
+## Features
+
+- **Encrypt secrets in `.env` files** - Selective encryption of
+  sensitive keys using [age](https://age-encryption.org/) (X25519)
+- **Commit everything to git** - Encrypted values are safe to version
+  control alongside your code
+- **Automatic file layering** - Load multiple `.env*` files with smart
+  precedence rules based on environment, OS, architecture, and user
+- **CI/CD ready** - Pass decryption keys via environment variables for
+  seamless deployment pipelines
+- **Multiple integration options**:
+  - **CLI** - Standalone command-line tool for encryption, decryption,
+    and env management
+  - **Rust** - Native library with full API access
+  - **Node.js** - Native bindings via NAPI-RS (no child process
+    overhead)
+  - **Python** - Native bindings via PyO3 (no subprocess calls)
 
 ## Installation
 
-### Using cargo-binstall (Recommended)
+### CLI (Command Line)
+
+#### Using cargo-binstall (Recommended)
 
 The fastest way to install pre-built binaries:
 
@@ -30,7 +45,7 @@ cargo install cargo-binstall
 cargo binstall dotenvage
 ```
 
-### Using cargo install
+#### Using cargo install
 
 Build from source (slower, requires Rust toolchain):
 
@@ -38,7 +53,7 @@ Build from source (slower, requires Rust toolchain):
 cargo install dotenvage
 ```
 
-### Manual Installation
+#### Manual Installation
 
 Download pre-built binaries from
 [GitHub Releases](https://github.com/dataroadinc/dotenvage/releases):
@@ -49,6 +64,33 @@ Download pre-built binaries from
 - macOS (Apple Silicon): `dotenvage-aarch64-apple-darwin.zip`
 - Windows (x86_64): `dotenvage-x86_64-pc-windows-msvc.zip`
 - Windows (ARM64): `dotenvage-aarch64-pc-windows-msvc.zip`
+
+### Node.js
+
+```bash
+npm install @dotenvage/node
+# or
+pnpm add @dotenvage/node
+# or
+yarn add @dotenvage/node
+```
+
+### Python
+
+```bash
+pip install dotenvage
+# or
+uv add dotenvage
+```
+
+### Rust
+
+Add to your `Cargo.toml`:
+
+```toml
+[dependencies]
+dotenvage = "0.3"
+```
 
 ## Usage
 
@@ -118,7 +160,9 @@ source <(dotenvage dump --export)
 # Not: $(DATABASE_URL) (Make variable expansion)
 ```
 
-## Library
+## Library Usage
+
+### Rust
 
 ```rust,no_run
 use dotenvage::{SecretManager, EnvLoader};
@@ -136,6 +180,44 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let dec = manager.decrypt_value(&enc)?;
     Ok(())
 }
+```
+
+### Node.js
+
+```javascript
+const { SecretManager, EnvLoader } = require("@dotenvage/node");
+
+// Load env files with auto-decryption
+const loader = new EnvLoader();
+loader.load();
+
+// Get all variables
+const vars = loader.getAllVariables();
+console.log(vars);
+
+// Encrypt and decrypt values
+const manager = SecretManager.generate();
+const encrypted = manager.encryptValue("secret");
+const decrypted = manager.decryptValue(encrypted);
+```
+
+### Python
+
+```python
+from dotenvage import SecretManager, EnvLoader
+
+# Load env files with auto-decryption
+loader = EnvLoader()
+loader.load()
+
+# Get all variables
+vars = loader.get_all_variables()
+print(vars)
+
+# Encrypt and decrypt values
+manager = SecretManager.generate()
+encrypted = manager.encrypt_value("secret")
+decrypted = manager.decrypt_value(encrypted)
 ```
 
 ## File Layering
