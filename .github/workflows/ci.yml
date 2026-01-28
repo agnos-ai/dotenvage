@@ -115,45 +115,21 @@ jobs:
         working-directory: python
         run: uv run pytest tests/ -v
 
-  # Detect version changes and prepare for release
+  # Detect version changes using reusable action
   version-check:
     name: Check Version
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     outputs:
-      version_changed: ${{ steps.version.outputs.changed }}
+      version_changed: ${{ steps.version.outputs.version_changed }}
       new_version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - name: Get current version from Cargo.toml
-        id: cargo_version
-        run: |
-          VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "Current Cargo.toml version: $VERSION"
-      - name: Get latest git tag
-        id: latest_tag
-        run: |
-          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
-          LATEST_VERSION=${LATEST_TAG#v}
-          echo "version=$LATEST_VERSION" >> $GITHUB_OUTPUT
-          echo "Latest git tag version: $LATEST_VERSION"
-      - name: Compare versions
+      - name: Get version info
         id: version
-        run: |
-          CARGO_VERSION="${{ steps.cargo_version.outputs.version }}"
-          TAG_VERSION="${{ steps.latest_tag.outputs.version }}"
-
-          if [ "$CARGO_VERSION" != "$TAG_VERSION" ]; then
-            echo "changed=true" >> $GITHUB_OUTPUT
-            echo "version=$CARGO_VERSION" >> $GITHUB_OUTPUT
-            echo "✅ Version changed: $TAG_VERSION -> $CARGO_VERSION"
-          else
-            echo "changed=false" >> $GITHUB_OUTPUT
-            echo "ℹ️  Version unchanged: $CARGO_VERSION"
-          fi
+        uses: dataroadinc/github-actions/.github/actions/get-version@main
 
   # Build all artifacts BEFORE creating release
   # This ensures we don't create a release if builds fail
@@ -308,16 +284,9 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Install cargo-binstall
-        run: |
-          curl -L --proto '=https' --tlsv1.2 -sSf \
-            https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh \
-            | bash
-
-      - name: Install Cocogitto via binstall
-        run: |
-          cargo binstall --no-confirm cocogitto
-          which cog
+      # Use reusable actions for tool setup
+      - name: Setup cocogitto
+        uses: dataroadinc/github-actions/.github/actions/setup-cocogitto@main
 
       - name: Create Release Tag
         run: |
@@ -332,6 +301,7 @@ jobs:
 
       - name: Generate Changelog
         run: |
+          export PATH="$HOME/.cargo/bin:$PATH"
           cog changelog --at v${{ needs.version-check.outputs.new_version }} > CHANGELOG.md
           cat CHANGELOG.md
 
